@@ -1,13 +1,20 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { errorStatus, testConnectionTarget } from "./lib/connectionTester.js";
+import { errorStatus, getDeploymentEnvStatus, testConnectionTarget } from "./lib/connectionTester.js";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: "1mb" }));
+
+app.get("/api/env-status", (_req, res) => {
+  res.json({
+    ok: true,
+    status: getDeploymentEnvStatus()
+  });
+});
 
 app.post("/api/test-connection", async (req, res) => {
   const started = Date.now();

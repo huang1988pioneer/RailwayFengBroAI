@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Box,
@@ -153,24 +153,54 @@ function App() {
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [envStatus, setEnvStatus] = useState({});
   const target = TARGETS[active];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEnvStatus() {
+      try {
+        const response = await fetch("/api/env-status");
+        const payload = await response.json();
+        if (cancelled || !payload.ok) return;
+        setEnvStatus(payload.status || {});
+        setValues((previous) => {
+          const next = { ...previous };
+          for (const key of Object.keys(TARGETS)) {
+            if (payload.status?.[key]?.available) {
+              next[key] = { ...next[key], useDeploymentEnv: true };
+            }
+          }
+          return next;
+        });
+      } catch {
+        // Older deployments may not have this endpoint yet; manual mode still works.
+      }
+    }
+
+    loadEnvStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const completed = useMemo(() => {
     const current = values[active];
-    if (current.useDeploymentEnv) return target.required.length;
+    if (current.useDeploymentEnv || envStatus[active]?.available) return target.required.length;
     return target.required.filter((key) => String(current[key] || "").trim()).length;
-  }, [active, target, values]);
+  }, [active, envStatus, target, values]);
 
   const preview = useMemo(() => {
     const current = values[active];
-    if (current.useDeploymentEnv) {
+    if (current.useDeploymentEnv || envStatus[active]?.available) {
       return `${target.name} credentials 將由部署環境變數提供`;
     }
     if (active === "bucket") {
       return `${current.endpoint || "https://t3.storageapi.dev"}/${current.bucketName || "<bucket-name>"} · region=${current.region || "auto"}`;
     }
     return maskSecret(current.connectionString) || target.fields.find((field) => field.key === "connectionString")?.placeholder;
-  }, [active, target.fields, values]);
+  }, [active, envStatus, target, values]);
 
   function updateValue(key, value) {
     setValues((previous) => ({
@@ -360,7 +390,7 @@ function App() {
               <div className="checklist">
                 {target.required.map((key) => {
                   const ok = String(values[active][key] || "").trim().length > 0;
-                  const envMode = Boolean(values[active].useDeploymentEnv);
+                  const envMode = Boolean(values[active].useDeploymentEnv || envStatus[active]?.available);
                   const label = target.fields.find((field) => field.key === key)?.label || key;
                   return (
                     <div key={key} className={ok || envMode ? "ok" : ""}>
