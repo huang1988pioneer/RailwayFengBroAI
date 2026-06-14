@@ -13,6 +13,30 @@ const DEFAULT_TIMEOUT_MS = 8000;
 
 app.use(express.json({ limit: "1mb" }));
 
+function firstEnv(names) {
+  return names.map((name) => process.env[name]).find((value) => String(value || "").trim());
+}
+
+function readBooleanEnv(name, fallback = false) {
+  const value = process.env[name];
+  if (value === undefined) return fallback;
+  return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
+}
+
+function coerceBoolean(value) {
+  if (typeof value === "boolean") return value;
+  return ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
+}
+
+function withDeploymentEnv(body, mapping) {
+  if (!body.useDeploymentEnv) return body;
+  const resolved = { ...body };
+  for (const [field, envNames] of Object.entries(mapping)) {
+    resolved[field] = firstEnv(envNames) || resolved[field];
+  }
+  return resolved;
+}
+
 function requireFields(body, fields) {
   const missing = fields.filter((field) => !String(body[field] || "").trim());
   if (missing.length) {
@@ -46,67 +70,96 @@ app.post("/api/test-connection", async (req, res) => {
     let details;
 
     if (target === "mongodb") {
-      requireFields(body, ["connectionString"]);
-      const client = new MongoClient(body.connectionString, {
+      const config = withDeploymentEnv(body, {
+        connectionString: ["MONGO_PUBLIC_URL", "MONGO_URL"],
+        databaseName: ["MONGO_DATABASE", "MONGODB_DATABASE"],
+        authSource: ["MONGO_AUTH_SOURCE", "MONGODB_AUTH_SOURCE"]
+      });
+      requireFields(config, ["connectionString"]);
+      const client = new MongoClient(config.connectionString, {
         serverSelectionTimeoutMS: DEFAULT_TIMEOUT_MS
       });
       await withTimeout(client.connect());
-      const pong = await client.db(body.databaseName || "admin").command({ ping: 1 });
+      const pong = await client.db(config.databaseName || "admin").command({ ping: 1 });
       await client.close();
       details = {
         target: "MongoDB",
-        endpoint: redact(body.connectionString),
-        database: body.databaseName || "admin",
+        source: config.useDeploymentEnv ? "deployment env" : "form",
+        endpoint: redact(config.connectionString),
+        database: config.databaseName || "admin",
         response: pong.ok === 1 ? "ping ok" : "ping returned"
       };
     } else if (target === "postgres") {
-      requireFields(body, ["connectionString"]);
+      const config = withDeploymentEnv(body, {
+        connectionString: ["DATABASE_PUBLIC_URL", "DATABASE_URL", "POSTGRES_PUBLIC_URL", "POSTGRES_URL"],
+        databaseName: ["PGDATABASE", "POSTGRES_DB"],
+        ssl: ["POSTGRES_SSL"]
+      });
+      if (body.useDeploymentEnv && config.ssl === undefined) config.ssl = readBooleanEnv("DATABASE_SSL", true);
+      config.ssl = coerceBoolean(config.ssl);
+      requireFields(config, ["connectionString"]);
       const client = new pg.Client({
-        connectionString: body.connectionString,
+        connectionString: config.connectionString,
         connectionTimeoutMillis: DEFAULT_TIMEOUT_MS,
-        ssl: body.ssl ? { rejectUnauthorized: false } : undefined
+        ssl: config.ssl ? { rejectUnauthorized: false } : undefined
       });
       await withTimeout(client.connect());
       const version = await client.query("select version()");
       await client.end();
       details = {
         target: "Postgres",
-        endpoint: redact(body.connectionString),
-        database: body.databaseName || "由連線字串決定",
+        source: config.useDeploymentEnv ? "deployment env" : "form",
+        endpoint: redact(config.connectionString),
+        database: config.databaseName || "由連線字串決定",
         response: version.rows?.[0]?.version?.split(" ").slice(0, 2).join(" ") || "query ok"
       };
     } else if (target === "mysql") {
-      requireFields(body, ["connectionString"]);
+      const config = withDeploymentEnv(body, {
+        connectionString: ["MYSQL_PUBLIC_URL", "MYSQL_URL"],
+        databaseName: ["MYSQL_DATABASE", "MYSQLDATABASE"],
+        ssl: ["MYSQL_SSL"]
+      });
+      config.ssl = coerceBoolean(config.ssl);
+      requireFields(config, ["connectionString"]);
       const connection = await withTimeout(mysql.createConnection({
-        uri: body.connectionString,
+        uri: config.connectionString,
         connectTimeout: DEFAULT_TIMEOUT_MS,
-        ssl: body.ssl ? { rejectUnauthorized: false } : undefined
+        ssl: config.ssl ? { rejectUnauthorized: false } : undefined
       }));
       const [rows] = await connection.query("select version() as version");
       await connection.end();
       details = {
         target: "MySQL",
-        endpoint: redact(body.connectionString),
-        database: body.databaseName || "由連線字串決定",
+        source: config.useDeploymentEnv ? "deployment env" : "form",
+        endpoint: redact(config.connectionString),
+        database: config.databaseName || "由連線字串決定",
         response: rows?.[0]?.version || "query ok"
       };
     } else if (target === "bucket") {
-      requireFields(body, ["endpoint", "region", "bucketName", "accessKeyId", "secretAccessKey"]);
+      const config = withDeploymentEnv(body, {
+        endpoint: ["BUCKET_ENDPOINT", "S3_ENDPOINT", "AWS_ENDPOINT_URL"],
+        region: ["BUCKET_REGION", "S3_REGION", "AWS_REGION"],
+        bucketName: ["BUCKET_NAME", "S3_BUCKET", "AWS_BUCKET_NAME"],
+        accessKeyId: ["BUCKET_ACCESS_KEY_ID", "S3_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID"],
+        secretAccessKey: ["BUCKET_SECRET_ACCESS_KEY", "S3_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"]
+      });
+      requireFields(config, ["endpoint", "region", "bucketName", "accessKeyId", "secretAccessKey"]);
       const client = new S3Client({
-        endpoint: body.endpoint,
-        region: body.region,
+        endpoint: config.endpoint,
+        region: config.region,
         forcePathStyle: true,
         credentials: {
-          accessKeyId: body.accessKeyId,
-          secretAccessKey: body.secretAccessKey
+          accessKeyId: config.accessKeyId,
+          secretAccessKey: config.secretAccessKey
         }
       });
-      await withTimeout(client.send(new HeadBucketCommand({ Bucket: body.bucketName })));
+      await withTimeout(client.send(new HeadBucketCommand({ Bucket: config.bucketName })));
       details = {
         target: "Bucket",
-        endpoint: body.endpoint,
-        bucket: body.bucketName,
-        region: body.region,
+        source: config.useDeploymentEnv ? "deployment env" : "form",
+        endpoint: config.endpoint,
+        bucket: config.bucketName,
+        region: config.region,
         response: "HeadBucket ok"
       };
     } else {

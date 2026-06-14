@@ -30,6 +30,7 @@ const TARGETS = {
     hint: "支援 Railway 的 MONGO_URL 或 MONGO_PUBLIC_URL。",
     required: ["connectionName", "environment", "connectionString"],
     fields: [
+      { key: "useDeploymentEnv", label: "使用部署環境變數", type: "checkbox" },
       { key: "connectionName", label: "連線名稱", placeholder: "mongo-prod" },
       { key: "environment", label: "環境", placeholder: "production" },
       { key: "connectionString", label: "連線字串", placeholder: "mongodb://user:password@host:port/db?authSource=admin", secret: true },
@@ -41,7 +42,8 @@ const TARGETS = {
       environment: "production",
       connectionString: "",
       databaseName: "admin",
-      authSource: "admin"
+      authSource: "admin",
+      useDeploymentEnv: false
     }
   },
   postgres: {
@@ -52,6 +54,7 @@ const TARGETS = {
     hint: "支援 Railway 的 DATABASE_URL 或 DATABASE_PUBLIC_URL。",
     required: ["connectionName", "environment", "connectionString"],
     fields: [
+      { key: "useDeploymentEnv", label: "使用部署環境變數", type: "checkbox" },
       { key: "connectionName", label: "連線名稱", placeholder: "pg-prod" },
       { key: "environment", label: "環境", placeholder: "production" },
       { key: "connectionString", label: "連線字串", placeholder: "postgresql://user:password@host:port/db", secret: true },
@@ -63,7 +66,8 @@ const TARGETS = {
       environment: "production",
       connectionString: "",
       databaseName: "",
-      ssl: true
+      ssl: true,
+      useDeploymentEnv: false
     }
   },
   mysql: {
@@ -74,6 +78,7 @@ const TARGETS = {
     hint: "支援 Railway 的 MYSQL_URL 或 MYSQL_PUBLIC_URL。",
     required: ["connectionName", "environment", "connectionString"],
     fields: [
+      { key: "useDeploymentEnv", label: "使用部署環境變數", type: "checkbox" },
       { key: "connectionName", label: "連線名稱", placeholder: "mysql-prod" },
       { key: "environment", label: "環境", placeholder: "production" },
       { key: "connectionString", label: "連線字串", placeholder: "mysql://user:password@host:port/db", secret: true },
@@ -85,7 +90,8 @@ const TARGETS = {
       environment: "production",
       connectionString: "",
       databaseName: "",
-      ssl: false
+      ssl: false,
+      useDeploymentEnv: false
     }
   },
   bucket: {
@@ -96,6 +102,7 @@ const TARGETS = {
     hint: "支援 Railway Bucket 的 S3-compatible credentials。",
     required: ["connectionName", "environment", "endpoint", "region", "bucketName", "accessKeyId", "secretAccessKey"],
     fields: [
+      { key: "useDeploymentEnv", label: "使用部署環境變數", type: "checkbox" },
       { key: "connectionName", label: "連線名稱", placeholder: "portable-cage" },
       { key: "environment", label: "環境", placeholder: "production" },
       { key: "endpoint", label: "Endpoint URL", placeholder: "https://t3.storageapi.dev" },
@@ -111,7 +118,8 @@ const TARGETS = {
       region: "auto",
       bucketName: "",
       accessKeyId: "",
-      secretAccessKey: ""
+      secretAccessKey: "",
+      useDeploymentEnv: false
     }
   }
 };
@@ -149,11 +157,15 @@ function App() {
 
   const completed = useMemo(() => {
     const current = values[active];
+    if (current.useDeploymentEnv) return target.required.length;
     return target.required.filter((key) => String(current[key] || "").trim()).length;
   }, [active, target, values]);
 
   const preview = useMemo(() => {
     const current = values[active];
+    if (current.useDeploymentEnv) {
+      return `${target.name} credentials 將由部署環境變數提供`;
+    }
     if (active === "bucket") {
       return `${current.endpoint || "https://t3.storageapi.dev"}/${current.bucketName || "<bucket-name>"} · region=${current.region || "auto"}`;
     }
@@ -341,10 +353,11 @@ function App() {
               <div className="checklist">
                 {target.required.map((key) => {
                   const ok = String(values[active][key] || "").trim().length > 0;
+                  const envMode = Boolean(values[active].useDeploymentEnv);
                   const label = target.fields.find((field) => field.key === key)?.label || key;
                   return (
-                    <div key={key} className={ok ? "ok" : ""}>
-                      {ok ? <CheckCircle2 size={17} /> : <CircleAlert size={17} />}
+                    <div key={key} className={ok || envMode ? "ok" : ""}>
+                      {ok || envMode ? <CheckCircle2 size={17} /> : <CircleAlert size={17} />}
                       <span>{label.replace("（選填）", "")}</span>
                     </div>
                   );
