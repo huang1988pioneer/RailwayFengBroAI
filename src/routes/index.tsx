@@ -32,11 +32,13 @@ type BackendHealth = {
   database?: string;
 };
 
+const LOCAL_RECORDS_KEY = "fengbro.static.records";
+
 export const Route = createFileRoute("/")({
-  component: App,
+  component: FengBroWorkspace,
 });
 
-function App() {
+export function FengBroWorkspace() {
   const [mounted, setMounted] = useState(false);
   const [activeId, setActiveId] = useState("subscription");
   const [records, setRecords] = useState<RecordItem[]>([]);
@@ -69,9 +71,10 @@ function App() {
   async function loadHealth() {
     try {
       const response = await fetch("/api/health");
+      if (!response.ok) throw new Error("Static deployment");
       setHealth(await response.json());
     } catch {
-      setHealth({ ok: false });
+      setHealth({ ok: true, provider: "browser" });
     }
   }
 
@@ -79,7 +82,12 @@ function App() {
     setLoading(true);
     try {
       const response = await fetch(`/api/records/${moduleId}`);
+      if (!response.ok) throw new Error("API unavailable");
       setRecords(await response.json());
+    } catch {
+      if (typeof window !== "undefined") {
+        setRecords(readLocalRecords(moduleId));
+      }
     } finally {
       setLoading(false);
     }
@@ -113,7 +121,19 @@ function App() {
       resetForm();
       await loadRecords();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "儲存失敗。");
+      if (typeof window !== "undefined") {
+        if (editing) {
+          writeLocalRecords(module.id, readLocalRecords(module.id).map((item) => item.id === editing.id ? { ...item, data: payload, updatedAt: new Date().toISOString() } : item));
+        } else {
+          const stamp = new Date().toISOString();
+          writeLocalRecords(module.id, [{ id: crypto.randomUUID(), module: module.id, data: payload, createdAt: stamp, updatedAt: stamp }, ...readLocalRecords(module.id)]);
+        }
+        setNotice(editing ? "已更新資料（瀏覽器儲存）。" : "已新增資料（瀏覽器儲存）。");
+        resetForm();
+        await loadRecords();
+      } else {
+        setNotice(error instanceof Error ? error.message : "儲存失敗。");
+      }
     } finally {
       setSaving(false);
     }
@@ -122,7 +142,12 @@ function App() {
   async function deleteRecord(item: RecordItem) {
     const title = String(item.data[getPrimaryField(module)] ?? item.id);
     if (!confirm(`確定刪除「${title}」？`)) return;
-    await fetch(`/api/records/${module.id}/${item.id}`, { method: "DELETE" });
+    try {
+      const response = await fetch(`/api/records/${module.id}/${item.id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("API unavailable");
+    } catch {
+      writeLocalRecords(module.id, readLocalRecords(module.id).filter((record) => record.id !== item.id));
+    }
     setNotice("已刪除資料。");
     await loadRecords();
   }
@@ -164,12 +189,17 @@ function App() {
         const payload = Object.fromEntries(module.csvHeaders.map((header) => [header, coerceCsvValue(row[header] ?? "")]));
         const primary = getPrimaryField(module);
         const existing = records.find((item) => String(item.data[primary] ?? "") === String(payload[primary] ?? ""));
-        const response = await fetch(existing ? `/api/records/${module.id}/${existing.id}` : `/api/records/${module.id}`, {
-          method: existing ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (response.ok) count += 1;
+        try {
+          const response = await fetch(existing ? `/api/records/${module.id}/${existing.id}` : `/api/records/${module.id}`, {
+            method: existing ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) throw new Error("API unavailable");
+        } catch {
+          upsertLocalRecord(module.id, primary, payload);
+        }
+        count += 1;
       }
       setNotice(`CSV 匯入完成：${count} 筆。`);
       setImportRows(null);
@@ -356,6 +386,36 @@ function App() {
   );
 }
 
+function readAllLocalRecords(): RecordItem[] {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_RECORDS_KEY) || "[]") as RecordItem[];
+  } catch {
+    return [];
+  }
+}
+
+function readLocalRecords(moduleId: string) {
+  if (typeof window === "undefined") return [];
+  return readAllLocalRecords().filter((item) => item.module === moduleId);
+}
+
+function writeLocalRecords(moduleId: string, records: RecordItem[]) {
+  const others = readAllLocalRecords().filter((item) => item.module !== moduleId);
+  localStorage.setItem(LOCAL_RECORDS_KEY, JSON.stringify([...records, ...others]));
+}
+
+function upsertLocalRecord(moduleId: string, primary: string, payload: Record<string, unknown>) {
+  const records = readLocalRecords(moduleId);
+  const stamp = new Date().toISOString();
+  const existingIndex = records.findIndex((item) => String(item.data[primary] ?? "") === String(payload[primary] ?? ""));
+  if (existingIndex >= 0) {
+    records[existingIndex] = { ...records[existingIndex], data: payload, updatedAt: stamp };
+  } else {
+    records.unshift({ id: crypto.randomUUID(), module: moduleId, data: payload, createdAt: stamp, updatedAt: stamp });
+  }
+  writeLocalRecords(moduleId, records);
+}
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="metric">
@@ -393,7 +453,9 @@ function FieldControl({
       onChange(payload.url);
       onNotice(`已上傳 ${file.name}。`);
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "上傳失敗。");
+      const localUrl = URL.createObjectURL(file);
+      onChange(localUrl);
+      onNotice(`已用瀏覽器暫存 ${file.name}。`);
     } finally {
       setUploading(false);
     }
