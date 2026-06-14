@@ -194,7 +194,14 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: active, ...values[active] })
       });
-      const payload = await response.json();
+      const responseText = await response.text();
+      let payload;
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        const preview = responseText.replace(/\s+/g, " ").trim().slice(0, 120) || "empty response";
+        throw new Error(`API returned non-JSON response (${response.status}): ${preview}`);
+      }
       setResult(payload);
       setLogs((previous) => [
         `${stamp} ${payload.ok ? "測試完成：成功" : `測試失敗：${payload.error}`}`,
