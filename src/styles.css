@@ -408,6 +408,62 @@ textarea:focus {
   display: grid;
   gap: 8px;
   padding: 12px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.storage-diagram-card strong {
+  color: #172033;
+}
+
+.diagram-box {
+  padding: 9px 10px;
+  border: 1px solid #d5dfeb;
+  border-radius: 7px;
+  color: #42506a;
+  background: #f8fafc;
+  font-weight: 800;
+}
+
+.diagram-box.accent {
+  border-color: #bdd8cb;
+  color: #0b6b4f;
+  background: #effaf5;
+}
+
+.diagram-arrow {
+  width: 2px;
+  height: 18px;
+  margin-left: 16px;
+  background: #c5d2e1;
+}
+
+.diagram-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diagram-fields span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #4b5870;
+  background: #eef3f8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.storage-diagram-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.storage-diagram-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
   border: 1px solid #d9e6ef;
   border-radius: 8px;
   background: #fff;
