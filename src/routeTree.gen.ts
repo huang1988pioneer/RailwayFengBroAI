@@ -11,6 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
+import { Route as ApiTestBucketRouteImport } from './routes/api/test-bucket'
+import { Route as ApiSetupRouteImport } from './routes/api/setup'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiRecordsModuleRouteImport } from './routes/api/records.$module'
 import { Route as ApiFilesKeyRouteImport } from './routes/api/files.$key'
@@ -24,6 +26,16 @@ const IndexRoute = IndexRouteImport.update({
 const ApiUploadRoute = ApiUploadRouteImport.update({
   id: '/api/upload',
   path: '/api/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTestBucketRoute = ApiTestBucketRouteImport.update({
+  id: '/api/test-bucket',
+  path: '/api/test-bucket',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSetupRoute = ApiSetupRouteImport.update({
+  id: '/api/setup',
+  path: '/api/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -50,6 +62,8 @@ const ApiRecordsModuleIdRoute = ApiRecordsModuleIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/setup': typeof ApiSetupRoute
+  '/api/test-bucket': typeof ApiTestBucketRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/files/$key': typeof ApiFilesKeyRoute
   '/api/records/$module': typeof ApiRecordsModuleRouteWithChildren
@@ -58,6 +72,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/setup': typeof ApiSetupRoute
+  '/api/test-bucket': typeof ApiTestBucketRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/files/$key': typeof ApiFilesKeyRoute
   '/api/records/$module': typeof ApiRecordsModuleRouteWithChildren
@@ -67,6 +83,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/setup': typeof ApiSetupRoute
+  '/api/test-bucket': typeof ApiTestBucketRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/files/$key': typeof ApiFilesKeyRoute
   '/api/records/$module': typeof ApiRecordsModuleRouteWithChildren
@@ -77,6 +95,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/health'
+    | '/api/setup'
+    | '/api/test-bucket'
     | '/api/upload'
     | '/api/files/$key'
     | '/api/records/$module'
@@ -85,6 +105,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/api/health'
+    | '/api/setup'
+    | '/api/test-bucket'
     | '/api/upload'
     | '/api/files/$key'
     | '/api/records/$module'
@@ -93,6 +115,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/api/health'
+    | '/api/setup'
+    | '/api/test-bucket'
     | '/api/upload'
     | '/api/files/$key'
     | '/api/records/$module'
@@ -102,6 +126,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiSetupRoute: typeof ApiSetupRoute
+  ApiTestBucketRoute: typeof ApiTestBucketRoute
   ApiUploadRoute: typeof ApiUploadRoute
   ApiFilesKeyRoute: typeof ApiFilesKeyRoute
   ApiRecordsModuleRoute: typeof ApiRecordsModuleRouteWithChildren
@@ -121,6 +147,20 @@ declare module '@tanstack/react-router' {
       path: '/api/upload'
       fullPath: '/api/upload'
       preLoaderRoute: typeof ApiUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/test-bucket': {
+      id: '/api/test-bucket'
+      path: '/api/test-bucket'
+      fullPath: '/api/test-bucket'
+      preLoaderRoute: typeof ApiTestBucketRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/setup': {
+      id: '/api/setup'
+      path: '/api/setup'
+      fullPath: '/api/setup'
+      preLoaderRoute: typeof ApiSetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -168,6 +208,8 @@ const ApiRecordsModuleRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiSetupRoute: ApiSetupRoute,
+  ApiTestBucketRoute: ApiTestBucketRoute,
   ApiUploadRoute: ApiUploadRoute,
   ApiFilesKeyRoute: ApiFilesKeyRoute,
   ApiRecordsModuleRoute: ApiRecordsModuleRouteWithChildren,

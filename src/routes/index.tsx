@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { coerceCsvValue, parseCsv, toCsv } from "../lib/csv";
-import { DATA_MODULES, FieldDef, ModuleDef, TOOL_CHILD_MODULES, getModule, getPrimaryField } from "../lib/modules";
+import { FieldDef, ModuleDef, NAV_MODULES, TOOL_CHILD_MODULES, getModule, getPrimaryField } from "../lib/modules";
 
 type RecordItem = {
   id: string;
@@ -151,7 +151,7 @@ export function FengBroWorkspace() {
       return;
     }
 
-    const payload = withToolDefaults(module, compactForm(form, module.fields));
+    const payload = withMediaTitleFallback(module, withToolDefaults(module, compactForm(form, module.fields)));
     if (!String(payload[getPrimaryField(module)] ?? "").trim()) {
       setNotice("請先填寫必要欄位。");
       return;
@@ -380,19 +380,38 @@ export function FengBroWorkspace() {
         </div>
 
         <nav className="nav-list">
-          {DATA_MODULES.map((item) => (
-            <button
-              key={item.id}
-              className={item.id === module.id ? "active" : ""}
-              type="button"
-              onClick={() => setActiveId(item.id)}
-            >
-              <item.icon size={18} />
-              <span>
-                <strong>{item.label}</strong>
-                <small>{item.subtitle}</small>
-              </span>
-            </button>
+          {NAV_MODULES.map((item) => (
+            <div className={item.id === "tools" ? "nav-group" : ""} key={item.id}>
+              <button
+                className={item.id === module.id || (item.id === "tools" && module.parent === "tools") ? "active" : ""}
+                type="button"
+                onClick={() => setActiveId(item.id)}
+              >
+                <item.icon size={18} />
+                <span>
+                  <strong>{item.label}</strong>
+                  <small>{item.subtitle}</small>
+                </span>
+              </button>
+              {item.id === "tools" ? (
+                <div className="nav-children">
+                  {TOOL_CHILD_MODULES.map((child) => (
+                    <button
+                      key={child.id}
+                      className={child.id === module.id ? "active child-active" : ""}
+                      type="button"
+                      onClick={() => setActiveId(child.id)}
+                    >
+                      <child.icon size={15} />
+                      <span>
+                        <strong>{child.label}</strong>
+                        <small>{child.subtitle}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           ))}
         </nav>
       </aside>
@@ -467,6 +486,13 @@ export function FengBroWorkspace() {
                 module={module}
                 value={form[field.key]}
                 onChange={(value) => setForm((previous) => ({ ...previous, [field.key]: value }))}
+                onUploadStart={(file) => {
+                  if (module.kind !== "media") return;
+                  setForm((previous) => ({
+                    ...previous,
+                    title: previous.title || file.name.replace(/\.[^.]+$/, ""),
+                  }));
+                }}
                 onUploadComplete={(payload) => {
                   setForm((previous) => ({
                     ...previous,
@@ -654,6 +680,7 @@ function FieldControl({
   module,
   value,
   onChange,
+  onUploadStart,
   onUploadComplete,
   onNotice,
 }: {
@@ -661,6 +688,7 @@ function FieldControl({
   module: ModuleDef;
   value: unknown;
   onChange: (value: unknown) => void;
+  onUploadStart: (file: File) => void;
   onUploadComplete: (payload: UploadPayload) => void;
   onNotice: (value: string) => void;
 }) {
@@ -669,6 +697,7 @@ function FieldControl({
 
   async function upload(file?: File) {
     if (!file) return;
+    onUploadStart(file);
     setUploading(true);
     try {
       const formData = new FormData();
@@ -1132,6 +1161,17 @@ function withToolDefaults(module: ModuleDef, payload: Record<string, unknown>) {
     ...defaults,
     ...payload,
     toolType: String(payload.toolType || defaults.toolType),
+  };
+}
+
+function withMediaTitleFallback(module: ModuleDef, payload: Record<string, unknown>) {
+  if (module.kind !== "media" || String(payload.title || "").trim()) return payload;
+  const source = String(payload.file || payload.bucketUrl || payload.url || "").trim();
+  if (!source) return payload;
+  const decoded = decodeURIComponent(source.split("/").pop() || source);
+  return {
+    ...payload,
+    title: decoded.replace(/^[0-9a-f-]+-/i, "").replace(/\.[^.]+$/, "") || module.label,
   };
 }
 
