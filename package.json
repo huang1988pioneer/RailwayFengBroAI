@@ -20,6 +20,8 @@
     "@aws-sdk/s3-request-presigner": "^3.1068.0",
     "@tanstack/react-router": "^1.170.15",
     "@tanstack/react-start": "^1.168.25",
+    "@tanstack/router-plugin": "1.168.18",
+    "@vitejs/plugin-react": "5.2.0",
     "express": "^4.19.2",
     "lucide-react": "^0.468.0",
     "mongodb": "^6.8.0",
@@ -27,11 +29,7 @@
     "pg": "^8.12.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "typescript": "5.9.3",
     "vite": "^8.0.16"
-  },
-  "devDependencies": {
-    "@tanstack/router-plugin": "^1.168.18",
-    "@vitejs/plugin-react": "^5.1.2",
-    "typescript": "^5.9.3"
   }
 }
