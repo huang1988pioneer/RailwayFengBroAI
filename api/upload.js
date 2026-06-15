@@ -23,6 +23,7 @@ export default async function handler(req, res) {
     const result = await uploadBufferToBucket(file, {
       module: fields.module,
       field: fields.field,
+      requireBucket: String(fields.requireBucket || "") === "true",
     });
     sendJson(res, 201, result);
   } catch (error) {

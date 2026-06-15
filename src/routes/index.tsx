@@ -730,7 +730,7 @@ function FieldControl({
       formData.append("field", field.key);
       if (module.kind === "media") formData.append("requireBucket", "true");
       const response = await fetch("/api/upload", { method: "POST", body: formData });
-      const payload = await response.json();
+      const payload = await readJsonResponse<UploadPayload>(response);
       if (!response.ok) throw new Error(payload.error || "Upload failed");
       onUploadComplete(payload);
       onNotice(`已上傳 ${file.name} 到 Bucket。`);
@@ -1272,5 +1272,19 @@ async function readError(response: Response) {
     return JSON.parse(text).error || text;
   } catch {
     return text || "Request failed";
+  }
+}
+
+async function readJsonResponse<T>(response: Response): Promise<T & { error?: string }> {
+  const text = await response.text();
+  if (!text) return {} as T & { error?: string };
+
+  try {
+    return JSON.parse(text) as T & { error?: string };
+  } catch {
+    const message = text.startsWith("Request Entity Too Large")
+      ? "檔案太大，伺服器拒絕接收。請改用較小檔案，或先上傳到 Bucket 後貼上 URL。"
+      : text;
+    return { error: message } as T & { error?: string };
   }
 }
