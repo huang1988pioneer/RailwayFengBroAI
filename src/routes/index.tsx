@@ -156,6 +156,10 @@ export function FengBroWorkspace() {
       setNotice("請先填寫必要欄位。");
       return;
     }
+    if (module.kind === "media" && !String(payload.bucketUrl || payload.file || payload.url || "").trim()) {
+      setNotice("請先上傳到 Bucket，或填寫來源 URL。");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -481,17 +485,20 @@ export function FengBroWorkspace() {
           <form className="record-form" onSubmit={saveRecord}>
             {module.fields.map((field) => (
               <FieldControl
-                key={field.key}
+                key={`${module.id}:${field.key}`}
                 field={field}
                 module={module}
                 value={form[field.key]}
                 onChange={(value) => setForm((previous) => ({ ...previous, [field.key]: value }))}
                 onUploadStart={(file) => {
                   if (module.kind !== "media") return;
+                  const previewUrl = URL.createObjectURL(file);
                   setForm((previous) => ({
                     ...previous,
+                    __previewUrl: previewUrl,
                     title: previous.title || file.name.replace(/\.[^.]+$/, ""),
                   }));
+                  setNotice(`已建立 ${file.name} 的本機預覽，正在上傳到 Bucket。`);
                 }}
                 onUploadComplete={(payload) => {
                   setForm((previous) => ({
@@ -604,7 +611,7 @@ function getMediaKind(module: ModuleDef) {
 }
 
 function getMediaUrl(data: Record<string, unknown>) {
-  const candidates = [data.bucketUrl, data.url, data.file, data.photo]
+  const candidates = [data.bucketUrl, data.__previewUrl, data.url, data.file, data.photo]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
   return candidates[0] || "";
@@ -675,6 +682,18 @@ function MediaPlayer({ kind, url, title }: { kind: string; url: string; title: s
   );
 }
 
+function acceptsFile(file: File, accept = "") {
+  if (!accept.trim()) return true;
+  const rules = accept.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+  const fileType = file.type.toLowerCase();
+  const fileName = file.name.toLowerCase();
+  return rules.some((rule) => {
+    if (rule.endsWith("/*")) return fileType.startsWith(rule.slice(0, -1));
+    if (rule.startsWith(".")) return fileName.endsWith(rule);
+    return fileType === rule;
+  });
+}
+
 function FieldControl({
   field,
   module,
@@ -697,6 +716,11 @@ function FieldControl({
 
   async function upload(file?: File) {
     if (!file) return;
+    if (!acceptsFile(file, field.accept)) {
+      onChange("");
+      onNotice(`${file.name} 不符合 ${module.label} 的檔案類型，請重新選擇。`);
+      return;
+    }
     onUploadStart(file);
     setUploading(true);
     try {
@@ -738,7 +762,7 @@ function FieldControl({
         </span>
       ) : isFile ? (
         <span className="upload-field">
-          <input type="file" accept={field.accept} onChange={(event) => upload(event.target.files?.[0])} />
+          <input key={`${module.id}:${field.key}:input`} type="file" accept={field.accept} onChange={(event) => upload(event.target.files?.[0])} />
           {uploading ? <Loader2 className="spin" size={16} /> : <UploadCloud size={16} />}
           {value ? (
             <a href={String(value)} target="_blank" rel="noreferrer">
@@ -868,6 +892,32 @@ function SettingsGuide({
         <span>MongoDB：建議單一 <code>records</code> collection，使用 <code>module</code> 欄位區分各鋒兄模組。</span>
         <span>Postgres / MySQL：建議單一 <code>fengbro_records</code> table，使用 <code>module</code> 欄位分流，<code>data</code> JSON 欄位保存模組資料。</span>
         <span>目前欄位會隨鋒兄圖片、影片、音樂、文件、工具等模組變動，單一結構最適合 CSV 匯入、備份和跨資料庫切換。</span>
+      </div>
+      <div className="storage-diagram-grid" aria-label="FengBro storage diagrams">
+        <div className="storage-diagram-card">
+          <strong>MongoDB</strong>
+          <div className="diagram-box">fengbro</div>
+          <div className="diagram-arrow" />
+          <div className="diagram-box accent">records collection</div>
+          <div className="diagram-fields">
+            <span>id</span>
+            <span>module</span>
+            <span>data</span>
+            <span>createdAt / updatedAt</span>
+          </div>
+        </div>
+        <div className="storage-diagram-card">
+          <strong>Postgres / MySQL</strong>
+          <div className="diagram-box">database / schema</div>
+          <div className="diagram-arrow" />
+          <div className="diagram-box accent">fengbro_records table</div>
+          <div className="diagram-fields">
+            <span>id</span>
+            <span>module</span>
+            <span>data JSON</span>
+            <span>created_at / updated_at</span>
+          </div>
+        </div>
       </div>
       <div className="settings-grid">
         <label>

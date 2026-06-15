@@ -398,6 +398,57 @@ textarea:focus {
   background: #eaf7f1;
 }
 
+.storage-diagram-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.storage-diagram-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #d9e6ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.diagram-box {
+  padding: 9px 10px;
+  border: 1px solid #d9e6ef;
+  border-radius: 7px;
+  color: #33415c;
+  font-weight: 800;
+  background: #f7fbff;
+}
+
+.diagram-box.accent {
+  border-color: #b9dfce;
+  color: #0b6b4f;
+  background: #effaf5;
+}
+
+.diagram-arrow {
+  width: 2px;
+  height: 14px;
+  margin-left: 16px;
+  background: #b7c5d8;
+}
+
+.diagram-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diagram-fields span {
+  padding: 5px 7px;
+  border-radius: 999px;
+  color: #647086;
+  font-size: 12px;
+  background: #f1f5f9;
+}
+
 .switch-row,
 .upload-field {
   display: flex;
