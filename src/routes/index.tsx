@@ -357,6 +357,18 @@ export function FengBroWorkspace() {
         ) : null}
         {module.id === "about" ? <AboutPanel /> : null}
         {module.id === "tools" ? <ToolsHub onOpen={setActiveId} /> : null}
+        {isToolChild(module) ? (
+          <ToolWorkspace
+            module={module}
+            records={filteredRecords}
+            onDraft={(draft) => {
+              setEditing(null);
+              setForm((previous) => ({ ...previous, ...getToolDefaults(module), ...draft }));
+              setNotice(`已帶入 ${module.label} 範本，可直接儲存到資料庫。`);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
+        ) : null}
 
         {module.fields.length ? <section className="panel form-panel">
           <div className="panel-heading">
@@ -383,7 +395,10 @@ export function FengBroWorkspace() {
                   setForm((previous) => ({
                     ...previous,
                     [field.key]: payload.url,
-                    ...(module.kind === "media" ? { bucketUrl: payload.bucketUrl || payload.url } : {}),
+                    ...(module.kind === "media" ? {
+                      bucketUrl: payload.bucketUrl || payload.url,
+                      title: previous.title || payload.name,
+                    } : {}),
                   }));
                 }}
                 onNotice={setNotice}
@@ -487,7 +502,10 @@ function getMediaKind(module: ModuleDef) {
 }
 
 function getMediaUrl(data: Record<string, unknown>) {
-  return String(data.bucketUrl || data.url || data.file || data.photo || "").trim();
+  const candidates = [data.bucketUrl, data.url, data.file, data.photo]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return candidates[0] || "";
 }
 
 function getMediaTitle(data: Record<string, unknown>, fallback = "媒體預覽") {
@@ -536,7 +554,7 @@ function MediaPreviewCard({
 
 function MediaPlayer({ kind, url, title }: { kind: string; url: string; title: string }) {
   if (kind === "image") {
-    return <img className="media-image" src={url} alt={title} loading="lazy" />;
+    return <img className="media-image" src={url} alt={title} loading="lazy" referrerPolicy="no-referrer" />;
   }
   if (kind === "video") {
     return <video className="media-video" src={url} controls preload="metadata" />;
@@ -777,6 +795,199 @@ function SettingsGuide({
       </div>
     </section>
   );
+}
+
+type ToolWorkspaceConfig = {
+  title: string;
+  kicker: string;
+  description: string;
+  accent: "amber" | "blue" | "rose" | "green";
+  sources: Array<{ label: string; url: string; note: string }>;
+  drafts: Array<Record<string, unknown>>;
+  cards: Array<{ label: string; value: string; note: string }>;
+};
+
+const TOOL_WORKSPACES: Record<string, ToolWorkspaceConfig> = {
+  priceCompare: {
+    title: "鋒兄比價",
+    kicker: "PRICE COMPARE",
+    description: "參考 SQLiteCloudFengBroAI 的 BigGo / PChome / momo 比價工作台，先建立查詢紀錄，再把結果保存到目前資料庫。",
+    accent: "amber",
+    sources: [
+      { label: "BigGo", url: "https://biggo.com.tw", note: "商品搜尋與價格趨勢" },
+      { label: "PChome 24h", url: "https://24h.pchome.com.tw", note: "台灣電商即時售價" },
+      { label: "momo", url: "https://www.momoshop.com.tw", note: "賣場價格與活動" },
+    ],
+    drafts: [
+      { queryText: "Crucial T500 2TB SSD", title: "Crucial T500 2TB PCIe Gen4 NVMe SSD", source: "BigGo / PChome", currentPrice: 10735, highPrice: 10735, lowPrice: 10735, currency: "TWD", resultUrl: "https://biggo.com.tw", notice: "參考 BigGo 歷史價格與 PChome 商品頁。" },
+      { queryText: "Dyson V15", title: "Dyson V15 Detect Absolute", source: "momo / PChome", currentPrice: 19900, highPrice: 24900, lowPrice: 18900, currency: "TWD", resultUrl: "https://www.momoshop.com.tw", notice: "建立商品追蹤後補上來源網址。" },
+    ],
+    cards: [
+      { label: "輸入", value: "商品網址 / 關鍵字", note: "可記錄 BigGo、PChome、momo 查詢" },
+      { label: "保存", value: "價格歷史", note: "currentPrice / highPrice / lowPrice" },
+      { label: "提醒", value: "notice", note: "記錄活動、低價、缺貨與觀察" },
+    ],
+  },
+  phoneCompare: {
+    title: "手機比價",
+    kicker: "LANDTOP / PHONE",
+    description: "參考 SQLiteCloudFengBroAI 的手機比價頁，保存機型、通路價格、最低價來源與查詢時間。",
+    accent: "blue",
+    sources: [
+      { label: "SOGI", url: "https://www.sogi.com.tw", note: "手機規格與建議售價" },
+      { label: "地標網通", url: "https://www.landtop.com.tw", note: "門市空機與方案價格" },
+      { label: "傑昇通信", url: "https://www.jyes.com.tw", note: "空機價格與促銷" },
+    ],
+    drafts: [
+      { queryText: "iPhone 17", title: "iPhone 17", source: "SOGI / 地標 / 傑昇", currentPrice: 34900, highPrice: 38900, lowPrice: 32900, currency: "TWD", resultUrl: "https://www.sogi.com.tw", notice: "參考截圖預設關鍵字，補上實際通路連結。" },
+      { queryText: "Samsung A17 6G 128GB", title: "Samsung A17 6G 128GB", source: "SOGI / 地標 / 傑昇", currentPrice: 4990, highPrice: 7990, lowPrice: 4990, currency: "TWD", resultUrl: "https://www.landtop.com.tw", notice: "記錄地標與傑昇最低價比較。" },
+    ],
+    cards: [
+      { label: "預設", value: "iPhone / Samsung", note: "快速建立常查機型" },
+      { label: "比較", value: "建議價 / 通路價", note: "保留高低價欄位" },
+      { label: "追蹤", value: "checkedAt", note: "每週更新價格紀錄" },
+    ],
+  },
+  tube: {
+    title: "鋒兄Tube",
+    kicker: "FENGBRO TUBE",
+    description: "參考 SQLiteCloudFengBroAI 的 YouTube / Bilibili 追蹤面板，保存頻道、影片、來源與更新紀錄。",
+    accent: "rose",
+    sources: [
+      { label: "YouTube", url: "https://www.youtube.com", note: "頻道與最新影片" },
+      { label: "Bilibili", url: "https://www.bilibili.com", note: "影音來源備援" },
+      { label: "RSS Feed", url: "https://www.youtube.com/feeds/videos.xml", note: "頻道 feed 可供 API 後續串接" },
+    ],
+    drafts: [
+      { queryText: "@SunChannelHK", title: "Sun Channel 最新影片", source: "YouTube", currentPrice: 0, highPrice: 0, lowPrice: 0, currency: "VIDEO", resultUrl: "https://www.youtube.com/@SunChannelHK/videos", notice: "保存頻道來源，後續可接 RSS 自動更新。" },
+      { queryText: "天下大勢", title: "政治新聞與時事影片追蹤", source: "YouTube / Bilibili", currentPrice: 0, highPrice: 0, lowPrice: 0, currency: "VIDEO", resultUrl: "https://www.youtube.com", notice: "用 queryText 保存頻道或關鍵字。" },
+    ],
+    cards: [
+      { label: "來源", value: "channel / handle", note: "YouTube @handle 或頻道 URL" },
+      { label: "列表", value: "recent videos", note: "保存最新影片與頻道摘要" },
+      { label: "備註", value: "notice", note: "記錄頻道分類與更新狀態" },
+    ],
+  },
+  finance: {
+    title: "鋒兄金融",
+    kicker: "FENGBRO FINANCE",
+    description: "參考 SQLiteCloudFengBroAI 的 Yahoo Finance / Google Finance / TradingView 金融看板，保存指數、匯率、個股與警戒。",
+    accent: "green",
+    sources: [
+      { label: "Yahoo Finance", url: "https://finance.yahoo.com", note: "美股、台股 ADR、匯率" },
+      { label: "Google Finance", url: "https://www.google.com/finance", note: "市場總覽與快速查詢" },
+      { label: "TradingView", url: "https://www.tradingview.com", note: "技術圖與指數觀察" },
+    ],
+    drafts: [
+      { queryText: "USDTWD=X", title: "美元對台幣匯率", source: "Yahoo Finance", currentPrice: 31.61, highPrice: 32.5, lowPrice: 30.8, currency: "TWD", resultUrl: "https://finance.yahoo.com/quote/USDTWD=X", notice: "匯率觀察，可加警戒價。" },
+      { queryText: "005930.KS", title: "Samsung Electronics", source: "Yahoo Finance", currentPrice: 41430, highPrice: 88800, lowPrice: 32000, currency: "KRW", resultUrl: "https://finance.yahoo.com/quote/005930.KS", notice: "參考金融截圖的三星、SK、指數與 Shiller PE。" },
+    ],
+    cards: [
+      { label: "市場", value: "index / FX / stock", note: "台股、美股、匯率、個股" },
+      { label: "警戒", value: "high / low", note: "用高低點欄位保存觀察線" },
+      { label: "來源", value: "Yahoo / Google / TV", note: "保留 resultUrl 可回查" },
+    ],
+  },
+};
+
+function isToolChild(module: ModuleDef) {
+  return module.parent === "tools" && Boolean(TOOL_WORKSPACES[module.id]);
+}
+
+function ToolWorkspace({
+  module,
+  records,
+  onDraft,
+}: {
+  module: ModuleDef;
+  records: RecordItem[];
+  onDraft: (draft: Record<string, unknown>) => void;
+}) {
+  const config = TOOL_WORKSPACES[module.id];
+  if (!config) return null;
+  const numericValues = records.map((item) => Number(item.data.currentPrice)).filter((value) => Number.isFinite(value) && value > 0);
+  const latest = records[0]?.data;
+  const summary = {
+    count: records.length,
+    current: Number(latest?.currentPrice || 0),
+    high: numericValues.length ? Math.max(...numericValues) : 0,
+    low: numericValues.length ? Math.min(...numericValues) : 0,
+  };
+
+  return (
+    <section className={`panel tool-workspace tool-workspace-${config.accent}`}>
+      <div className="tool-workspace-hero">
+        <div>
+          <span className="tool-kicker">{config.kicker}</span>
+          <h3>{config.title}</h3>
+          <p>{config.description}</p>
+        </div>
+        <div className="tool-summary-pills">
+          <span>{summary.count} 筆紀錄</span>
+          <span>目前 {formatToolValue(summary.current, latest?.currency)}</span>
+          <span>低點 {formatToolValue(summary.low, latest?.currency)}</span>
+        </div>
+      </div>
+
+      <div className="tool-source-grid">
+        {config.sources.map((source) => (
+          <a href={source.url} target="_blank" rel="noreferrer" key={source.label}>
+            <strong>{source.label}</strong>
+            <span>{source.note}</span>
+            <ExternalLink size={14} />
+          </a>
+        ))}
+      </div>
+
+      <div className="tool-card-grid">
+        {config.cards.map((card) => (
+          <article key={card.label}>
+            <span>{card.label}</span>
+            <strong>{card.value}</strong>
+            <small>{card.note}</small>
+          </article>
+        ))}
+      </div>
+
+      <div className="tool-draft-box">
+        <div>
+          <h4>快速建立 {config.title} 查詢</h4>
+          <p>範本會填入 queryText、source、價格/數值欄位與來源 URL，儲存後就成為目前資料庫的工具歷史。</p>
+        </div>
+        <div className="tool-draft-actions">
+          {config.drafts.map((draft) => (
+            <button type="button" className="ghost-button" key={String(draft.queryText)} onClick={() => onDraft({ ...draft, checkedAt: new Date().toISOString().slice(0, 16) })}>
+              <Plus size={15} />
+              {String(draft.queryText)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {records.length ? (
+        <div className="tool-recent-list">
+          <h4>最近工具紀錄</h4>
+          {records.slice(0, 4).map((item) => (
+            <article key={item.id}>
+              <strong>{String(item.data.title || item.data.queryText || item.id)}</strong>
+              <span>{String(item.data.source || module.label)} / {formatToolValue(Number(item.data.currentPrice || 0), item.data.currency)}</span>
+              {item.data.resultUrl ? (
+                <a href={String(item.data.resultUrl)} target="_blank" rel="noreferrer">
+                  開啟來源 <ExternalLink size={13} />
+                </a>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function formatToolValue(value: number, currency: unknown) {
+  if (!Number.isFinite(value) || value <= 0) return "-";
+  const unit = String(currency || "TWD");
+  return `${value.toLocaleString("zh-TW", { maximumFractionDigits: unit === "TWD" ? 0 : 2 })} ${unit}`;
 }
 
 function ToolsHub({ onOpen }: { onOpen: (id: string) => void }) {

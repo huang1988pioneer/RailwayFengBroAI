@@ -5,11 +5,7 @@ export function readStoreConfig(request: Request): StoreConfig {
   if (!raw) return {};
 
   try {
-    const json = decodeURIComponent(
-      Array.from(atob(raw))
-        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, "0")}`)
-        .join(""),
-    );
+    const json = Buffer.from(raw, "base64").toString("utf8");
     const parsed = JSON.parse(json) as StoreConfig;
     return {
       provider: parsed.provider,

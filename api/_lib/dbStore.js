@@ -3,6 +3,7 @@ import mysql from "mysql2/promise";
 import pg from "pg";
 
 const TABLE_NAME = "fengbro_records";
+const MONGO_COLLECTION_NAME = "records";
 
 export function sendJson(res, status, payload) {
   res.statusCode = status;
@@ -103,16 +104,29 @@ async function createMongoStore(config) {
   const client = new MongoClient(config.connectionString);
   await client.connect();
   const db = client.db(config.databaseName || "fengbro");
-  const collection = db.collection("records");
+  const collection = db.collection(MONGO_COLLECTION_NAME);
   await collection.createIndex({ module: 1, updatedAt: -1 });
 
   return {
     provider: "mongodb",
     database: db.databaseName,
+    storage: { type: "collection", name: MONGO_COLLECTION_NAME, mode: "single" },
     async health() {
       await db.command({ ping: 1 });
       await client.close();
-      return { ok: true, provider: "mongodb", database: db.databaseName };
+      return { ok: true, provider: "mongodb", database: db.databaseName, collection: MONGO_COLLECTION_NAME };
+    },
+    async setup() {
+      await db.command({ ping: 1 });
+      await collection.createIndex({ module: 1, updatedAt: -1 });
+      await client.close();
+      return {
+        ok: true,
+        provider: "mongodb",
+        database: db.databaseName,
+        collection: MONGO_COLLECTION_NAME,
+        recommendation: "single collection + module field",
+      };
     },
     async list(module) {
       const records = await collection.find({ module }, { projection: { _id: 0 } }).sort({ updatedAt: -1 }).toArray();
@@ -162,10 +176,22 @@ async function createPostgresStore(config) {
 
   return {
     provider: "postgres",
+    storage: { type: "table", name: TABLE_NAME, mode: "single" },
     async health() {
       await pool.query("SELECT 1 AS ok");
       await pool.end();
-      return { ok: true, provider: "postgres", database: config.databaseName };
+      return { ok: true, provider: "postgres", database: config.databaseName, table: TABLE_NAME };
+    },
+    async setup() {
+      await pool.query("SELECT 1 AS ok");
+      await pool.end();
+      return {
+        ok: true,
+        provider: "postgres",
+        database: config.databaseName,
+        table: TABLE_NAME,
+        recommendation: "single table + module column",
+      };
     },
     async list(module) {
       const result = await pool.query(`SELECT * FROM ${TABLE_NAME} WHERE module=$1 ORDER BY updated_at DESC`, [module]);
@@ -206,7 +232,7 @@ async function createPostgresStore(config) {
 async function createMysqlStore(config) {
   const pool = mysql.createPool({
     uri: config.connectionString,
-    ssl: config.ssl ? {} : undefined,
+    ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
   });
   await pool.query(`
     CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
@@ -221,10 +247,22 @@ async function createMysqlStore(config) {
 
   return {
     provider: "mysql",
+    storage: { type: "table", name: TABLE_NAME, mode: "single" },
     async health() {
       await pool.query("SELECT 1 AS ok");
       await pool.end();
-      return { ok: true, provider: "mysql", database: config.databaseName };
+      return { ok: true, provider: "mysql", database: config.databaseName, table: TABLE_NAME };
+    },
+    async setup() {
+      await pool.query("SELECT 1 AS ok");
+      await pool.end();
+      return {
+        ok: true,
+        provider: "mysql",
+        database: config.databaseName,
+        table: TABLE_NAME,
+        recommendation: "single table + module column",
+      };
     },
     async list(module) {
       const [rows] = await pool.query(`SELECT * FROM ${TABLE_NAME} WHERE module=? ORDER BY updated_at DESC`, [module]);

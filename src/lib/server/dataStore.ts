@@ -18,6 +18,7 @@ type Store = {
   update(module: string, id: string, data: Record<string, unknown>): Promise<RecordItem>;
   remove(module: string, id: string): Promise<void>;
   health(): Promise<Record<string, unknown>>;
+  setup?(): Promise<Record<string, unknown>>;
 };
 
 export type StoreProvider = "local" | "mongodb" | "postgres" | "postgresql" | "mysql" | "mongo";
@@ -123,6 +124,9 @@ async function createLocalStore(): Promise<Store> {
     async health() {
       return { provider: "local", filePath };
     },
+    async setup() {
+      return { ok: true, provider: "local", filePath, recommendation: "local JSON fallback" };
+    },
   };
 }
 
@@ -173,7 +177,11 @@ async function createPostgresStore(config: StoreConfig = {}): Promise<Store> {
     },
     async health() {
       const result = await pool.query("SELECT 1 AS ok");
-      return { provider: "postgres", ok: result.rows[0]?.ok === 1 };
+      return { provider: "postgres", ok: result.rows[0]?.ok === 1, table: "fengbro_records" };
+    },
+    async setup() {
+      await pool.query("SELECT 1 AS ok");
+      return { ok: true, provider: "postgres", table: "fengbro_records", recommendation: "single table + module column" };
     },
   };
 }
@@ -226,7 +234,11 @@ async function createMysqlStore(config: StoreConfig = {}): Promise<Store> {
     },
     async health() {
       const [rows] = await pool.query("SELECT 1 AS ok");
-      return { provider: "mysql", ok: Array.isArray(rows) };
+      return { provider: "mysql", ok: Array.isArray(rows), table: "fengbro_records" };
+    },
+    async setup() {
+      await pool.query("SELECT 1 AS ok");
+      return { ok: true, provider: "mysql", table: "fengbro_records", recommendation: "single table + module column" };
     },
   };
 }
@@ -236,7 +248,7 @@ async function createMongoStore(config: StoreConfig = {}): Promise<Store> {
   await client.connect();
   const db = client.db(config.databaseName || process.env.MONGO_DATABASE || process.env.DB_NAME || "fengbro");
   const collection = db.collection<RecordItem>("records");
-  await collection.createIndex({ module: 1 });
+  await collection.createIndex({ module: 1, updatedAt: -1 });
 
   return {
     async list(module) {
@@ -262,7 +274,12 @@ async function createMongoStore(config: StoreConfig = {}): Promise<Store> {
     },
     async health() {
       await db.command({ ping: 1 });
-      return { provider: "mongodb", database: db.databaseName };
+      return { provider: "mongodb", database: db.databaseName, collection: "records" };
+    },
+    async setup() {
+      await db.command({ ping: 1 });
+      await collection.createIndex({ module: 1, updatedAt: -1 });
+      return { ok: true, provider: "mongodb", database: db.databaseName, collection: "records", recommendation: "single collection + module field" };
     },
   };
 }
