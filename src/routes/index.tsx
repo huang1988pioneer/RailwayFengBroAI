@@ -496,7 +496,7 @@ export function FengBroWorkspace() {
                   setForm((previous) => ({
                     ...previous,
                     __previewUrl: previewUrl,
-                    title: previous.title || file.name.replace(/\.[^.]+$/, ""),
+                    title: previous.title || file.name,
                   }));
                   setNotice(`已建立 ${file.name} 的本機預覽，正在上傳到 Bucket。`);
                 }}
