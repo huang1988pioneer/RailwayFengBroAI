@@ -1,0 +1,136 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img [ref=e7]
+      - generic [ref=e10]:
+        - paragraph [ref=e11]: NhostFengBroAI
+        - strong [ref=e12]: 鋒兄資料工作台
+    - navigation "主選單" [ref=e13]:
+      - button "首頁" [ref=e14]:
+        - img [ref=e15]
+        - generic [ref=e18]: 首頁
+      - button "總覽 0" [ref=e19]:
+        - img [ref=e20]
+        - generic [ref=e22]: 總覽
+        - strong [ref=e23]: "0"
+      - button "訂閱 0" [ref=e24]:
+        - img [ref=e25]
+        - generic [ref=e27]: 訂閱
+        - strong [ref=e28]: "0"
+      - button "食品庫存 保存期限與數量0" [ref=e29]:
+        - img [ref=e30]
+        - generic [ref=e34]: 食品庫存 保存期限與數量
+        - strong [ref=e35]: "0"
+      - button "筆記 0" [ref=e36]:
+        - img [ref=e37]
+        - generic [ref=e40]: 筆記
+        - strong [ref=e41]: "0"
+      - button "常用帳號 0" [ref=e42]:
+        - img [ref=e43]
+        - generic [ref=e45]: 常用帳號
+        - strong [ref=e46]: "0"
+      - button "圖片 0" [ref=e47]:
+        - img [ref=e48]
+        - generic [ref=e52]: 圖片
+        - strong [ref=e53]: "0"
+      - button "影片 0" [ref=e54]:
+        - img [ref=e55]
+        - generic [ref=e57]: 影片
+        - strong [ref=e58]: "0"
+      - button "音樂 0" [ref=e59]:
+        - img [ref=e60]
+        - generic [ref=e64]: 音樂
+        - strong [ref=e65]: "0"
+      - button "文件 0" [ref=e66]:
+        - img [ref=e67]
+        - generic [ref=e69]: 文件
+        - strong [ref=e70]: "0"
+      - button "Podcast 0" [ref=e71]:
+        - img [ref=e72]
+        - generic [ref=e76]: Podcast
+        - strong [ref=e77]: "0"
+      - button "銀行 帳戶與卡片0" [ref=e78]:
+        - img [ref=e79]
+        - generic [ref=e81]: 銀行 帳戶與卡片
+        - strong [ref=e82]: "0"
+      - button "例行事項 0" [ref=e83]:
+        - img [ref=e84]
+        - generic [ref=e88]: 例行事項
+        - strong [ref=e89]: "0"
+      - button "工具 4" [ref=e90]:
+        - img [ref=e91]
+        - generic [ref=e93]: 工具
+        - strong [ref=e94]: "4"
+      - generic [ref=e95]:
+        - button "價格比較0" [ref=e96]:
+          - img [ref=e97]
+          - text: 價格比較
+          - strong [ref=e100]: "0"
+        - button "手機比較0" [ref=e101]:
+          - img [ref=e102]
+          - text: 手機比較
+          - strong [ref=e112]: "0"
+        - button "FengBro Tube0" [ref=e113]:
+          - img [ref=e114]
+          - text: FengBro Tube
+          - strong [ref=e116]: "0"
+        - button "金融追蹤0" [ref=e117]:
+          - img [ref=e118]
+          - text: 金融追蹤
+          - strong [ref=e121]: "0"
+      - button "設定" [ref=e122]:
+        - img [ref=e123]
+        - generic [ref=e126]: 設定
+      - button "關於" [ref=e127]:
+        - img [ref=e128]
+        - generic [ref=e130]: 關於
+    - generic [ref=e131]:
+      - img [ref=e132]
+      - text: 載入中：正在載入 Nhost GraphQL...
+  - main [ref=e136]:
+    - generic [ref=e137]:
+      - button "切換選單" [ref=e138]:
+        - img [ref=e139]
+      - generic [ref=e140]:
+        - paragraph [ref=e141]: Nuxt Workspace
+        - heading "首頁" [level=1] [ref=e142]
+      - generic [ref=e143]:
+        - img [ref=e144]
+        - searchbox [ref=e147]
+    - generic [ref=e148]: 正在載入 Nhost GraphQL...
+    - generic [ref=e149]:
+      - generic [ref=e150]:
+        - generic [ref=e151]:
+          - paragraph [ref=e152]: FengBro Console
+          - heading "鋒兄資料中控台" [level=2] [ref=e153]
+          - paragraph [ref=e154]: 透過 Nhost GraphQL 讀寫資料，整合訂閱、食品、帳號、筆記、銀行與例行事項。 可先在設定頁完成連線，再用各模組新增、匯入與檢視資料。
+        - generic "資料概況" [ref=e155]: 載入中0 筆訂閱0 筆食品0 筆銀行
+      - generic [ref=e156]:
+        - article [ref=e157]:
+          - img [ref=e158]
+          - text: 續訂訂閱
+          - strong [ref=e160]: "0"
+        - article [ref=e161]:
+          - img [ref=e162]
+          - text: TWD 訂閱支出
+          - strong [ref=e165]: $0
+        - article [ref=e166]:
+          - img [ref=e167]
+          - text: 食品庫存數量
+          - strong [ref=e170]: "0"
+        - article [ref=e171]:
+          - img [ref=e172]
+          - text: 銀行總存款
+          - strong [ref=e174]: $0
+      - generic [ref=e175]:
+        - generic [ref=e176]:
+          - heading "近期訂閱" [level=3] [ref=e177]
+          - button "前往訂閱" [ref=e178]
+        - generic [ref=e179]:
+          - textbox "帳號 / 名稱" [ref=e180]
+          - textbox "網站 / 連結" [ref=e181]
+          - textbox "備註" [ref=e182]
+          - button "新增常用帳號" [ref=e183]
+      - generic [ref=e185]:
+        - heading "最新筆記" [level=3] [ref=e186]
+        - button "前往" [ref=e187]

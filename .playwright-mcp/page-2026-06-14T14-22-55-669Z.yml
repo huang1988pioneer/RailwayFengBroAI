@@ -1,0 +1,142 @@
+- main [ref=e3]:
+  - region "連線目標" [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - heading "鋒兄設定" [level=1] [ref=e7]
+        - paragraph [ref=e8]: Railway 服務連線檢查
+      - button "保存設定" [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+    - generic [ref=e14]:
+      - button "MongoDB mongo-prod 可選擇" [ref=e136] [cursor=pointer]:
+        - img [ref=e16]
+        - generic [ref=e19]:
+          - strong [ref=e20]: MongoDB
+          - generic [ref=e21]: mongo-prod
+        - emphasis [ref=e22]: 可選擇
+      - button "Postgres pg-prod 可選擇" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - generic [ref=e28]:
+          - strong [ref=e29]: Postgres
+          - generic [ref=e30]: pg-prod
+        - emphasis [ref=e31]: 可選擇
+      - button "MySQL mysql-prod 可選擇" [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+        - generic [ref=e37]:
+          - strong [ref=e38]: MySQL
+          - generic [ref=e39]: mysql-prod
+        - emphasis [ref=e40]: 可選擇
+      - button "Bucket portable-cage 編輯中" [ref=e137] [cursor=pointer]:
+        - img [ref=e42]
+        - generic [ref=e45]:
+          - strong [ref=e46]: Bucket
+          - generic [ref=e47]: portable-cage
+        - emphasis [ref=e48]: 編輯中
+    - generic [ref=e49]:
+      - text: 目前環境
+      - strong [ref=e50]: production
+      - generic [ref=e51]: project · delightful-courage
+  - generic [ref=e52]:
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - heading "測試連線" [level=2] [ref=e55]
+        - paragraph [ref=e56]: 選擇 MongoDB、Postgres、MySQL 或 Bucket，填入 Railway credentials 後立即檢查。
+      - button "重設表單" [ref=e57] [cursor=pointer]:
+        - img [ref=e58]
+        - text: 重設表單
+    - navigation "連線目標分頁" [ref=e63]:
+      - button "MongoDB" [ref=e64] [cursor=pointer]
+      - button "Postgres" [ref=e65] [cursor=pointer]
+      - button "MySQL" [ref=e66] [cursor=pointer]
+      - button "Bucket" [ref=e67] [cursor=pointer]
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - generic [ref=e70]:
+          - img [ref=e138]
+          - generic [ref=e74]:
+            - heading "Bucket 連線設定" [level=3] [ref=e141]
+            - paragraph [ref=e76]: 支援 Railway Bucket 的 S3-compatible credentials。
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - generic [ref=e79]: 連線名稱*
+            - textbox "連線名稱*" [ref=e80]:
+              - /placeholder: portable-cage
+              - text: portable-cage
+          - generic [ref=e81]:
+            - generic [ref=e82]: 環境*
+            - textbox "環境*" [ref=e83]:
+              - /placeholder: production
+              - text: production
+          - generic [ref=e142]:
+            - generic [ref=e143]: Endpoint URL*
+            - textbox "Endpoint URL*" [ref=e144]:
+              - /placeholder: https://t3.storageapi.dev
+              - text: https://t3.storageapi.dev
+          - generic [ref=e145]:
+            - generic [ref=e146]: Region*
+            - textbox "Region*" [ref=e147]:
+              - /placeholder: auto
+              - text: auto
+          - generic [ref=e148]:
+            - generic [ref=e149]: Bucket Name*
+            - textbox "Bucket Name*" [ref=e150]:
+              - /placeholder: portable-cage-z5yt07ol-lu
+          - generic [ref=e151]:
+            - generic [ref=e152]: Access Key ID*
+            - textbox "Access Key ID*" [ref=e153]:
+              - /placeholder: 輸入 Access Key ID
+          - generic [ref=e154]:
+            - generic [ref=e155]: Secret Access Key*
+            - textbox "Secret Access Key*" [ref=e156]:
+              - /placeholder: 輸入 Secret Access Key
+        - generic [ref=e93]:
+          - generic [ref=e94]: 端點預覽
+          - code [ref=e95]: https://t3.storageapi.dev/<bucket-name> · region=auto
+          - button [ref=e96] [cursor=pointer]:
+            - img [ref=e97]
+        - generic [ref=e100]:
+          - button "測試連線" [ref=e101] [cursor=pointer]:
+            - img [ref=e179]
+            - text: 測試連線
+          - generic [ref=e104]: 4 / 7 必要欄位完成
+      - complementary [ref=e105]:
+        - generic [ref=e106]:
+          - heading "必要欄位" [level=3] [ref=e107]
+          - generic [ref=e108]:
+            - generic [ref=e109]:
+              - img [ref=e110]
+              - generic [ref=e113]: 連線名稱
+            - generic [ref=e114]:
+              - img [ref=e115]
+              - generic [ref=e118]: 環境
+            - generic [ref=e157]:
+              - img [ref=e158]
+              - generic [ref=e161]: Endpoint URL
+            - generic [ref=e162]:
+              - img [ref=e163]
+              - generic [ref=e166]: Region
+            - generic [ref=e167]:
+              - img [ref=e168]
+              - generic [ref=e170]: Bucket Name
+            - generic [ref=e171]:
+              - img [ref=e172]
+              - generic [ref=e174]: Access Key ID
+            - generic [ref=e175]:
+              - img [ref=e176]
+              - generic [ref=e178]: Secret Access Key
+          - generic "必要欄位完成度" [ref=e123]
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - heading "測試結果" [level=3] [ref=e127]
+            - generic [ref=e181]: 1 ms
+          - strong [ref=e182]: 連線失敗
+          - paragraph [ref=e183]: 缺少必要欄位：bucketName, accessKeyId, secretAccessKey
+          - generic [ref=e184]:
+            - term [ref=e185]: 目標
+            - definition [ref=e186]: Bucket
+            - term [ref=e187]: 時間
+            - definition [ref=e188]: 2026/6/14 22:22:54
+        - generic [ref=e132]:
+          - heading "紀錄" [level=3] [ref=e133]
+          - list [ref=e134]:
+            - listitem [ref=e189]: 22:22:54 測試失敗：缺少必要欄位：bucketName, accessKeyId, secretAccessKey
+            - listitem [ref=e190]: 22:22:54 開始測試 Bucket...

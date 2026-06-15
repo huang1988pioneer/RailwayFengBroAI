@@ -1,0 +1,119 @@
+- main [ref=e3]:
+  - complementary [ref=e4]:
+    - img [ref=e5]
+    - img [ref=e8]
+    - img [ref=e11]
+  - region "連線目標" [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - heading "鋒兄設定" [level=1] [ref=e17]
+        - paragraph [ref=e18]: Railway 服務連線檢查
+      - button "保存設定" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+    - generic [ref=e24]:
+      - button "MongoDB mongo-prod 編輯中" [ref=e25] [cursor=pointer]:
+        - img [ref=e26]
+        - generic [ref=e29]:
+          - strong [ref=e30]: MongoDB
+          - generic [ref=e31]: mongo-prod
+        - emphasis [ref=e32]: 編輯中
+      - button "Postgres pg-prod 可選擇" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e38]:
+          - strong [ref=e39]: Postgres
+          - generic [ref=e40]: pg-prod
+        - emphasis [ref=e41]: 可選擇
+      - button "MySQL mysql-prod 可選擇" [ref=e42] [cursor=pointer]:
+        - img [ref=e43]
+        - generic [ref=e47]:
+          - strong [ref=e48]: MySQL
+          - generic [ref=e49]: mysql-prod
+        - emphasis [ref=e50]: 可選擇
+      - button "Bucket portable-cage 可選擇" [ref=e51] [cursor=pointer]:
+        - img [ref=e52]
+        - generic [ref=e55]:
+          - strong [ref=e56]: Bucket
+          - generic [ref=e57]: portable-cage
+        - emphasis [ref=e58]: 可選擇
+    - generic [ref=e59]:
+      - text: 目前環境
+      - strong [ref=e60]: production
+      - generic [ref=e61]: project · delightful-courage
+  - generic [ref=e62]:
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - heading "測試連線" [level=2] [ref=e65]
+        - paragraph [ref=e66]: 選擇 MongoDB、Postgres、MySQL 或 Bucket，填入 Railway credentials 後立即檢查。
+      - button "重設表單" [ref=e67] [cursor=pointer]:
+        - img [ref=e68]
+        - text: 重設表單
+    - navigation "連線目標分頁" [ref=e73]:
+      - button "MongoDB" [ref=e74] [cursor=pointer]
+      - button "Postgres" [ref=e75] [cursor=pointer]
+      - button "MySQL" [ref=e76] [cursor=pointer]
+      - button "Bucket" [ref=e77] [cursor=pointer]
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - generic [ref=e80]:
+          - img [ref=e81]
+          - generic [ref=e84]:
+            - heading "MongoDB 連線設定" [level=3] [ref=e85]
+            - paragraph [ref=e86]: 支援 Railway 的 MONGO_URL 或 MONGO_PUBLIC_URL。
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - generic [ref=e89]: 連線名稱*
+            - textbox "連線名稱*" [ref=e90]:
+              - /placeholder: mongo-prod
+              - text: mongo-prod
+          - generic [ref=e91]:
+            - generic [ref=e92]: 環境*
+            - textbox "環境*" [ref=e93]:
+              - /placeholder: production
+              - text: production
+          - generic [ref=e94]:
+            - generic [ref=e95]: 連線字串*
+            - textbox "連線字串*" [ref=e96]:
+              - /placeholder: mongodb://user:password@host:port/db?authSource=admin
+          - generic [ref=e97]:
+            - generic [ref=e98]: 資料庫名稱（選填）
+            - textbox "資料庫名稱（選填）" [ref=e99]:
+              - /placeholder: admin
+              - text: admin
+          - generic [ref=e100]:
+            - generic [ref=e101]: 認證來源（選填）
+            - textbox "認證來源（選填）" [ref=e102]:
+              - /placeholder: admin
+              - text: admin
+        - generic [ref=e103]:
+          - generic [ref=e104]: 端點預覽
+          - code [ref=e105]: mongodb://user:password@host:port/db?authSource=admin
+          - button [ref=e106] [cursor=pointer]:
+            - img [ref=e107]
+        - generic [ref=e110]:
+          - button "測試連線" [ref=e111] [cursor=pointer]:
+            - img [ref=e112]
+            - text: 測試連線
+          - generic [ref=e114]: 2 / 3 必要欄位完成
+      - complementary [ref=e115]:
+        - generic [ref=e116]:
+          - heading "必要欄位" [level=3] [ref=e117]
+          - generic [ref=e118]:
+            - generic [ref=e119]:
+              - img [ref=e120]
+              - generic [ref=e123]: 連線名稱
+            - generic [ref=e124]:
+              - img [ref=e125]
+              - generic [ref=e128]: 環境
+            - generic [ref=e129]:
+              - img [ref=e130]
+              - generic [ref=e132]: 連線字串
+          - generic "必要欄位完成度" [ref=e133]
+        - generic [ref=e135]:
+          - generic [ref=e136]:
+            - heading "測試結果" [level=3] [ref=e137]
+            - img [ref=e138]
+          - paragraph [ref=e141]: 尚未測試。填完必要欄位後按下測試連線。
+        - generic [ref=e142]:
+          - heading "紀錄" [level=3] [ref=e143]
+          - list [ref=e144]:
+            - listitem [ref=e145]: 等待第一次測試...
