@@ -53,7 +53,7 @@ const mediaFields = (kind: string, accept?: string): FieldDef[] => [
   { key: "description", label: "描述", type: "textarea", wide: true },
   { key: "url", label: "來源 URL", type: "url" },
   { key: "file", label: `${kind}檔案`, type: "file", accept, wide: true },
-  { key: "bucketUrl", label: "Bucket URL", type: "url", wide: true },
+  { key: "bucketUrl", label: "Bucket URL", wide: true },
   { key: "category", label: "分類" },
   { key: "createdAt", label: "建立日期", type: "date" },
 ];

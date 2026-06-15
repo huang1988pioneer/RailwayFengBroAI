@@ -1,6 +1,12 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import healthHandler from "./api/health.js";
+import recordsHandler from "./api/records/[module].js";
+import recordHandler from "./api/records/[module]/[id].js";
+import filesHandler from "./api/files/[key].js";
+import testBucketHandler from "./api/test-bucket.js";
+import uploadHandler from "./api/upload.js";
 import { errorStatus, getDeploymentEnvStatus, testConnectionTarget } from "./lib/connectionTester.js";
 
 const app = express();
@@ -8,6 +14,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: "1mb" }));
+
+function withQuery(params, handler) {
+  return (req, res) => {
+    req.query = { ...req.query, ...params(req) };
+    return handler(req, res);
+  };
+}
 
 app.get("/api/env-status", (_req, res) => {
   res.json({
@@ -36,6 +49,13 @@ app.post("/api/test-connection", async (req, res) => {
     });
   }
 });
+
+app.get("/api/health", healthHandler);
+app.post("/api/test-bucket", testBucketHandler);
+app.all("/api/records/:module", withQuery((req) => ({ module: req.params.module }), recordsHandler));
+app.all("/api/records/:module/:id", withQuery((req) => ({ module: req.params.module, id: req.params.id }), recordHandler));
+app.post("/api/upload", uploadHandler);
+app.get("/api/files/:key", withQuery((req) => ({ key: req.params.key }), filesHandler));
 
 app.use(express.static(path.join(__dirname, "dist")));
 app.get("*", (_req, res) => {
