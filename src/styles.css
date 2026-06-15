@@ -350,6 +350,31 @@ textarea:focus {
   gap: 14px;
 }
 
+.storage-advice {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #d9e6ef;
+  border-radius: 8px;
+  color: #33415c;
+  background: #f7fbff;
+}
+
+.storage-advice strong {
+  color: #172033;
+}
+
+.storage-advice span {
+  line-height: 1.55;
+}
+
+.storage-advice code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  color: #0b6b4f;
+  background: #eaf7f1;
+}
+
 .switch-row,
 .upload-field {
   display: flex;

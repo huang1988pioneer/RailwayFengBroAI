@@ -834,6 +834,12 @@ function SettingsGuide({
     <section className="panel guide">
       <h3>鋒兄資料庫設定</h3>
       <p>可自由切換 MongoDB、Postgres 或 MySQL。localStorage 只保存這份鋒兄設定，CRUD 與 CSV 匯入資料直接讀寫資料庫。</p>
+      <div className="storage-advice">
+        <strong>建議資料結構</strong>
+        <span>MongoDB：建議單一 <code>records</code> collection，使用 <code>module</code> 欄位區分各鋒兄模組。</span>
+        <span>Postgres / MySQL：建議單一 <code>fengbro_records</code> table，使用 <code>module</code> 欄位分流，<code>data</code> JSON 欄位保存模組資料。</span>
+        <span>目前欄位會隨鋒兄圖片、影片、音樂、文件、工具等模組變動，單一結構最適合 CSV 匯入、備份和跨資料庫切換。</span>
+      </div>
       <div className="settings-grid">
         <label>
           <span>資料庫</span>
