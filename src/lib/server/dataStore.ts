@@ -20,19 +20,41 @@ type Store = {
   health(): Promise<Record<string, unknown>>;
 };
 
-let storePromise: Promise<Store> | null = null;
+export type StoreProvider = "local" | "mongodb" | "postgres" | "postgresql" | "mysql" | "mongo";
 
-export function getDataStore() {
-  storePromise ??= createStore();
-  return storePromise;
+export type StoreConfig = {
+  provider?: StoreProvider | string;
+  connectionString?: string;
+  databaseName?: string;
+  ssl?: boolean;
+};
+
+const storePromises = new Map<string, Promise<Store>>();
+
+export function getDataStore(config: StoreConfig = {}) {
+  const key = storeKey(config);
+  if (!storePromises.has(key)) {
+    storePromises.set(key, createStore(config));
+  }
+  return storePromises.get(key)!;
 }
 
-async function createStore(): Promise<Store> {
-  const provider = (process.env.DB_PROVIDER || process.env.DATABASE_PROVIDER || detectProvider()).toLowerCase();
-  if (provider === "postgres" || provider === "postgresql") return createPostgresStore();
-  if (provider === "mysql") return createMysqlStore();
-  if (provider === "mongodb" || provider === "mongo") return createMongoStore();
+async function createStore(config: StoreConfig = {}): Promise<Store> {
+  const provider = (config.provider || process.env.DB_PROVIDER || process.env.DATABASE_PROVIDER || detectProvider()).toLowerCase();
+  if (provider === "postgres" || provider === "postgresql") return createPostgresStore(config);
+  if (provider === "mysql") return createMysqlStore(config);
+  if (provider === "mongodb" || provider === "mongo") return createMongoStore(config);
   return createLocalStore();
+}
+
+function storeKey(config: StoreConfig) {
+  const provider = config.provider || process.env.DB_PROVIDER || process.env.DATABASE_PROVIDER || detectProvider();
+  return JSON.stringify({
+    provider,
+    connectionString: config.connectionString || "",
+    databaseName: config.databaseName || "",
+    ssl: config.ssl,
+  });
 }
 
 function detectProvider() {
@@ -104,11 +126,11 @@ async function createLocalStore(): Promise<Store> {
   };
 }
 
-async function createPostgresStore(): Promise<Store> {
+async function createPostgresStore(config: StoreConfig = {}): Promise<Store> {
   const { Pool } = pg;
   const pool = new Pool({
-    connectionString: process.env.POSTGRES_PUBLIC_URL || process.env.POSTGRES_URL || process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL,
-    ssl: process.env.POSTGRES_SSL === "false" || process.env.DATABASE_SSL === "false" || process.env.DB_SSL === "false" ? false : { rejectUnauthorized: false },
+    connectionString: config.connectionString || process.env.POSTGRES_PUBLIC_URL || process.env.POSTGRES_URL || process.env.DATABASE_PUBLIC_URL || process.env.DATABASE_URL,
+    ssl: config.ssl === false || process.env.POSTGRES_SSL === "false" || process.env.DATABASE_SSL === "false" || process.env.DB_SSL === "false" ? false : { rejectUnauthorized: false },
   });
   await pool.query(`
     CREATE TABLE IF NOT EXISTS fengbro_records (
@@ -156,8 +178,11 @@ async function createPostgresStore(): Promise<Store> {
   };
 }
 
-async function createMysqlStore(): Promise<Store> {
-  const pool = mysql.createPool(process.env.MYSQL_PUBLIC_URL || process.env.MYSQL_URL || process.env.DATABASE_URL || "");
+async function createMysqlStore(config: StoreConfig = {}): Promise<Store> {
+  const pool = mysql.createPool({
+    uri: config.connectionString || process.env.MYSQL_PUBLIC_URL || process.env.MYSQL_URL || process.env.DATABASE_URL || "",
+    ssl: config.ssl ? { rejectUnauthorized: false } : undefined,
+  });
   await pool.query(`
     CREATE TABLE IF NOT EXISTS fengbro_records (
       id VARCHAR(64) PRIMARY KEY,
@@ -206,10 +231,10 @@ async function createMysqlStore(): Promise<Store> {
   };
 }
 
-async function createMongoStore(): Promise<Store> {
-  const client = new MongoClient(process.env.MONGO_PUBLIC_URL || process.env.MONGO_URL || process.env.MONGODB_URI || process.env.DATABASE_URL || "");
+async function createMongoStore(config: StoreConfig = {}): Promise<Store> {
+  const client = new MongoClient(config.connectionString || process.env.MONGO_PUBLIC_URL || process.env.MONGO_URL || process.env.MONGODB_URI || process.env.DATABASE_URL || "");
   await client.connect();
-  const db = client.db(process.env.MONGO_DATABASE || process.env.DB_NAME || "fengbro");
+  const db = client.db(config.databaseName || process.env.MONGO_DATABASE || process.env.DB_NAME || "fengbro");
   const collection = db.collection<RecordItem>("records");
   await collection.createIndex({ module: 1 });
 

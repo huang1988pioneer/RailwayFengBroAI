@@ -14,8 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { DATA_MODULES, FieldDef, ModuleDef, getModule, getPrimaryField } from "../lib/modules";
 import { coerceCsvValue, parseCsv, toCsv } from "../lib/csv";
+import { DATA_MODULES, FieldDef, ModuleDef, TOOL_CHILD_MODULES, getModule, getPrimaryField } from "../lib/modules";
 
 type RecordItem = {
   id: string;
@@ -28,11 +28,36 @@ type RecordItem = {
 type BackendHealth = {
   ok: boolean;
   provider?: string;
-  filePath?: string;
   database?: string;
+  message?: string;
 };
 
-const LOCAL_RECORDS_KEY = "fengbro.static.records";
+type DbProvider = "mongodb" | "postgres" | "mysql";
+
+type DbSettings = {
+  provider: DbProvider;
+  connectionString: string;
+  databaseName: string;
+  ssl: boolean;
+};
+
+type UploadPayload = {
+  key: string;
+  url: string;
+  bucketUrl?: string;
+  name: string;
+  type: string;
+  size: number;
+};
+
+const DB_SETTINGS_KEY = "fengbro.db.settings";
+
+const DEFAULT_DB_SETTINGS: DbSettings = {
+  provider: "mongodb",
+  connectionString: "",
+  databaseName: "fengbro",
+  ssl: true,
+};
 
 export const Route = createFileRoute("/")({
   component: FengBroWorkspace,
@@ -50,17 +75,19 @@ export function FengBroWorkspace() {
   const [form, setForm] = useState<Record<string, unknown>>({});
   const [notice, setNotice] = useState("");
   const [importRows, setImportRows] = useState<Array<Record<string, string>> | null>(null);
+  const [dbSettings, setDbSettings] = useState<DbSettings>(DEFAULT_DB_SETTINGS);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const module = getModule(activeId);
 
   useEffect(() => {
     setMounted(true);
+    setDbSettings(readDbSettings());
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
-    void loadHealth();
-  }, [mounted]);
+    void loadHealth(dbSettings);
+  }, [dbSettings, mounted]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -68,26 +95,41 @@ export function FengBroWorkspace() {
     void loadRecords(module.id);
   }, [module.id, mounted]);
 
-  async function loadHealth() {
+  async function loadHealth(settings = dbSettings) {
+    if (!hasDbSettings(settings)) {
+      setHealth({ ok: false, provider: settings.provider, message: "請先在鋒兄設定儲存資料庫連線。" });
+      return;
+    }
+
     try {
-      const response = await fetch("/api/health");
-      if (!response.ok) throw new Error("Static deployment");
-      setHealth(await response.json());
-    } catch {
-      setHealth({ ok: true, provider: "browser" });
+      const response = await fetch("/api/health", { headers: dbHeaders(settings, false) });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "資料庫連線失敗");
+      setHealth(payload);
+    } catch (error) {
+      setHealth({
+        ok: false,
+        provider: settings.provider,
+        message: error instanceof Error ? error.message : "資料庫連線失敗",
+      });
     }
   }
 
   async function loadRecords(moduleId = activeId) {
+    if (!hasDbSettings(dbSettings)) {
+      setRecords([]);
+      setNotice("請先到鋒兄設定選擇 MongoDB、Postgres 或 MySQL，並儲存連線字串。");
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await fetch(`/api/records/${moduleId}`);
-      if (!response.ok) throw new Error("API unavailable");
+      const response = await fetch(`/api/records/${moduleId}`, { headers: dbHeaders(dbSettings, false) });
+      if (!response.ok) throw new Error(await readError(response));
       setRecords(await response.json());
-    } catch {
-      if (typeof window !== "undefined") {
-        setRecords(readLocalRecords(moduleId));
-      }
+    } catch (error) {
+      setRecords([]);
+      setNotice(error instanceof Error ? error.message : "資料讀取失敗，請檢查鋒兄設定。");
     } finally {
       setLoading(false);
     }
@@ -96,14 +138,22 @@ export function FengBroWorkspace() {
   function resetForm(targetModule = module) {
     setEditing(null);
     setImportRows(null);
-    setForm(Object.fromEntries(targetModule.fields.map((field) => [field.key, field.type === "boolean" ? false : ""])));
+    setForm({
+      ...Object.fromEntries(targetModule.fields.map((field) => [field.key, field.type === "boolean" ? false : ""])),
+      ...getToolDefaults(targetModule),
+    });
   }
 
   async function saveRecord(event: FormEvent) {
     event.preventDefault();
-    const payload = compactForm(form, module.fields);
+    if (!hasDbSettings(dbSettings)) {
+      setNotice("請先儲存鋒兄資料庫設定，資料不會寫入 localStorage。");
+      return;
+    }
+
+    const payload = withToolDefaults(module, compactForm(form, module.fields));
     if (!String(payload[getPrimaryField(module)] ?? "").trim()) {
-      setNotice("請先填寫必填欄位。");
+      setNotice("請先填寫必要欄位。");
       return;
     }
 
@@ -113,43 +163,43 @@ export function FengBroWorkspace() {
       const method = editing ? "PUT" : "POST";
       const response = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: dbHeaders(dbSettings),
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error(await response.text());
-      setNotice(editing ? "已更新資料。" : "已新增資料。");
+      if (!response.ok) throw new Error(await readError(response));
+      setNotice(editing ? "已更新資料庫資料。" : "已新增資料庫資料。");
       resetForm();
       await loadRecords();
     } catch (error) {
-      if (typeof window !== "undefined") {
-        if (editing) {
-          writeLocalRecords(module.id, readLocalRecords(module.id).map((item) => item.id === editing.id ? { ...item, data: payload, updatedAt: new Date().toISOString() } : item));
-        } else {
-          const stamp = new Date().toISOString();
-          writeLocalRecords(module.id, [{ id: crypto.randomUUID(), module: module.id, data: payload, createdAt: stamp, updatedAt: stamp }, ...readLocalRecords(module.id)]);
-        }
-        setNotice(editing ? "已更新資料（瀏覽器儲存）。" : "已新增資料（瀏覽器儲存）。");
-        resetForm();
-        await loadRecords();
-      } else {
-        setNotice(error instanceof Error ? error.message : "儲存失敗。");
-      }
+      setNotice(error instanceof Error ? error.message : "資料寫入失敗，請檢查鋒兄設定。");
     } finally {
       setSaving(false);
     }
   }
 
   async function deleteRecord(item: RecordItem) {
+    if (!hasDbSettings(dbSettings)) {
+      setNotice("請先儲存鋒兄資料庫設定。");
+      return;
+    }
+
     const title = String(item.data[getPrimaryField(module)] ?? item.id);
     if (!confirm(`確定刪除「${title}」？`)) return;
+
+    setSaving(true);
     try {
-      const response = await fetch(`/api/records/${module.id}/${item.id}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("API unavailable");
-    } catch {
-      writeLocalRecords(module.id, readLocalRecords(module.id).filter((record) => record.id !== item.id));
+      const response = await fetch(`/api/records/${module.id}/${item.id}`, {
+        method: "DELETE",
+        headers: dbHeaders(dbSettings, false),
+      });
+      if (!response.ok) throw new Error(await readError(response));
+      setNotice("已從資料庫刪除。");
+      await loadRecords();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "刪除失敗，請檢查資料庫連線。");
+    } finally {
+      setSaving(false);
     }
-    setNotice("已刪除資料。");
-    await loadRecords();
   }
 
   function editRecord(item: RecordItem) {
@@ -174,7 +224,7 @@ export function FengBroWorkspace() {
     const reader = new FileReader();
     reader.onload = () => {
       setImportRows(parseCsv(String(reader.result || "")));
-      setNotice(`已讀取 ${file.name}，請確認後匯入。`);
+      setNotice(`已讀取 ${file.name}，請確認後直接匯入目前選擇的資料庫。`);
     };
     reader.readAsText(file, "utf-8");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -182,31 +232,42 @@ export function FengBroWorkspace() {
 
   async function executeImport() {
     if (!importRows?.length) return;
+    if (!hasDbSettings(dbSettings)) {
+      setNotice("請先儲存鋒兄資料庫設定，CSV 匯入不會寫入 localStorage。");
+      return;
+    }
+
     setSaving(true);
     let count = 0;
     try {
       for (const row of importRows) {
-        const payload = Object.fromEntries(module.csvHeaders.map((header) => [header, coerceCsvValue(row[header] ?? "")]));
+        const payload = withToolDefaults(module, Object.fromEntries(module.csvHeaders.map((header) => [header, coerceCsvValue(row[header] ?? "")])));
         const primary = getPrimaryField(module);
         const existing = records.find((item) => String(item.data[primary] ?? "") === String(payload[primary] ?? ""));
-        try {
-          const response = await fetch(existing ? `/api/records/${module.id}/${existing.id}` : `/api/records/${module.id}`, {
-            method: existing ? "PUT" : "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (!response.ok) throw new Error("API unavailable");
-        } catch {
-          upsertLocalRecord(module.id, primary, payload);
-        }
+        const response = await fetch(existing ? `/api/records/${module.id}/${existing.id}` : `/api/records/${module.id}`, {
+          method: existing ? "PUT" : "POST",
+          headers: dbHeaders(dbSettings),
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error(await readError(response));
         count += 1;
       }
-      setNotice(`CSV 匯入完成：${count} 筆。`);
+      setNotice(`CSV 已直接匯入 ${dbSettings.provider}，共 ${count} 筆。`);
       setImportRows(null);
       await loadRecords();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "CSV 匯入失敗，請檢查資料庫連線。");
     } finally {
       setSaving(false);
     }
+  }
+
+  function saveDbSettings(nextSettings = dbSettings) {
+    localStorage.setItem(DB_SETTINGS_KEY, JSON.stringify(nextSettings));
+    setDbSettings(nextSettings);
+    setNotice("已儲存鋒兄設定。localStorage 只保存這份資料庫設定，不保存 CRUD 資料。");
+    void loadHealth(nextSettings);
+    void loadRecords(module.id);
   }
 
   const filteredRecords = useMemo(() => {
@@ -227,7 +288,7 @@ export function FengBroWorkspace() {
       <main className="shell boot-shell">
         <section className="boot-panel">
           <Loader2 className="spin" size={22} />
-          <span>鋒兄 AI 管理台載入中</span>
+          <span>鋒兄 AI 載入中</span>
         </section>
       </main>
     );
@@ -240,7 +301,7 @@ export function FengBroWorkspace() {
           <div className="brand-mark">鋒</div>
           <div>
             <p>FengBro</p>
-            <h1>鋒兄 AI 管理台</h1>
+            <h1>鋒兄 AI</h1>
           </div>
         </div>
 
@@ -271,10 +332,10 @@ export function FengBroWorkspace() {
           <div className="topbar-actions">
             <span className={health?.ok ? "status ok" : "status"}>
               <Database size={15} />
-              {health?.provider ?? "checking"}
+              {health?.ok ? `${health.provider} ready` : health?.provider ?? "未設定"}
             </span>
             <button className="ghost-button" type="button" onClick={() => loadRecords()}>
-              重新整理
+              重新讀取
             </button>
           </div>
         </header>
@@ -285,14 +346,23 @@ export function FengBroWorkspace() {
           <Metric label="Bucket 檔案" value={stats.withFiles.toLocaleString("zh-TW")} />
         </section>
 
-        {module.id === "settings" ? <SettingsGuide health={health} /> : null}
+        {module.id === "settings" ? (
+          <SettingsGuide
+            settings={dbSettings}
+            health={health}
+            onChange={setDbSettings}
+            onSave={saveDbSettings}
+            onTest={() => loadHealth(dbSettings)}
+          />
+        ) : null}
         {module.id === "about" ? <AboutPanel /> : null}
+        {module.id === "tools" ? <ToolsHub onOpen={setActiveId} /> : null}
 
-        <section className="panel form-panel">
+        {module.fields.length ? <section className="panel form-panel">
           <div className="panel-heading">
             <div>
               <h3>{editing ? "編輯資料" : "新增資料"}</h3>
-              <p>欄位依 Appwrite CSV header 建立，媒體類型可上傳至 Bucket。</p>
+              <p>資料直接寫入目前選擇的 MongoDB、Postgres 或 MySQL；CSV 欄位沿用 Appwrite 格式。</p>
             </div>
             {editing ? (
               <button className="icon-action" type="button" onClick={() => resetForm()}>
@@ -309,13 +379,20 @@ export function FengBroWorkspace() {
                 module={module}
                 value={form[field.key]}
                 onChange={(value) => setForm((previous) => ({ ...previous, [field.key]: value }))}
+                onUploadComplete={(payload) => {
+                  setForm((previous) => ({
+                    ...previous,
+                    [field.key]: payload.url,
+                    ...(module.kind === "media" ? { bucketUrl: payload.bucketUrl || payload.url } : {}),
+                  }));
+                }}
                 onNotice={setNotice}
               />
             ))}
             <div className="form-actions">
               <button className="primary-button" type="submit" disabled={saving}>
                 {saving ? <Loader2 className="spin" size={17} /> : editing ? <Check size={17} /> : <Plus size={17} />}
-                {editing ? "儲存修改" : "新增資料"}
+                {editing ? "更新資料" : "新增資料"}
               </button>
               <button className="ghost-button" type="button" onClick={() => resetForm()}>
                 清空
@@ -323,9 +400,10 @@ export function FengBroWorkspace() {
               {notice ? <span className="notice">{notice}</span> : null}
             </div>
           </form>
-        </section>
+          {getMediaKind(module) ? <MediaPreviewCard module={module} data={form} title="即時預覽" /> : null}
+        </section> : null}
 
-        <section className="panel">
+        {module.csvHeaders.length ? <section className="panel">
           <div className="toolbar">
             <label className="search">
               <Search size={17} />
@@ -354,7 +432,7 @@ export function FengBroWorkspace() {
             <div className="import-preview">
               <div>
                 <h3>CSV 匯入預覽</h3>
-                <p>偵測到 {importRows.length} 筆。相同主欄位會更新，否則新增。</p>
+                <p>讀到 {importRows.length} 筆，確認後會直接寫入目前選擇的資料庫。</p>
               </div>
               <div className="preview-list">
                 {importRows.slice(0, 6).map((row, index) => (
@@ -373,47 +451,21 @@ export function FengBroWorkspace() {
             </div>
           ) : null}
 
+          {getMediaKind(module) && filteredRecords.length ? <MediaGallery module={module} records={filteredRecords} /> : null}
+
           {loading ? (
-            <div className="empty-state"><Loader2 className="spin" />資料載入中</div>
+            <div className="empty-state">
+              <Loader2 className="spin" />資料讀取中
+            </div>
           ) : filteredRecords.length ? (
             <RecordTable module={module} records={filteredRecords} onEdit={editRecord} onDelete={deleteRecord} />
           ) : (
-            <div className="empty-state">尚無資料，先新增一筆或匯入 CSV。</div>
+            <div className="empty-state">目前沒有資料。請先設定資料庫，或匯入 CSV。</div>
           )}
-        </section>
+        </section> : null}
       </section>
     </main>
   );
-}
-
-function readAllLocalRecords(): RecordItem[] {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_RECORDS_KEY) || "[]") as RecordItem[];
-  } catch {
-    return [];
-  }
-}
-
-function readLocalRecords(moduleId: string) {
-  if (typeof window === "undefined") return [];
-  return readAllLocalRecords().filter((item) => item.module === moduleId);
-}
-
-function writeLocalRecords(moduleId: string, records: RecordItem[]) {
-  const others = readAllLocalRecords().filter((item) => item.module !== moduleId);
-  localStorage.setItem(LOCAL_RECORDS_KEY, JSON.stringify([...records, ...others]));
-}
-
-function upsertLocalRecord(moduleId: string, primary: string, payload: Record<string, unknown>) {
-  const records = readLocalRecords(moduleId);
-  const stamp = new Date().toISOString();
-  const existingIndex = records.findIndex((item) => String(item.data[primary] ?? "") === String(payload[primary] ?? ""));
-  if (existingIndex >= 0) {
-    records[existingIndex] = { ...records[existingIndex], data: payload, updatedAt: stamp };
-  } else {
-    records.unshift({ id: crypto.randomUUID(), module: moduleId, data: payload, createdAt: stamp, updatedAt: stamp });
-  }
-  writeLocalRecords(moduleId, records);
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -425,17 +477,97 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getMediaKind(module: ModuleDef) {
+  if (module.id === "images") return "image";
+  if (module.id === "videos") return "video";
+  if (module.id === "music") return "audio";
+  if (module.id === "podcast") return "podcast";
+  if (module.id === "documents") return "document";
+  return "";
+}
+
+function getMediaUrl(data: Record<string, unknown>) {
+  return String(data.bucketUrl || data.url || data.file || data.photo || "").trim();
+}
+
+function getMediaTitle(data: Record<string, unknown>, fallback = "媒體預覽") {
+  return String(data.title || data.name || data.description || fallback).trim();
+}
+
+function MediaGallery({ module, records }: { module: ModuleDef; records: RecordItem[] }) {
+  const mediaRecords = records.filter((item) => getMediaUrl(item.data)).slice(0, 8);
+  if (!mediaRecords.length) return null;
+  return (
+    <div className="media-gallery">
+      {mediaRecords.map((item) => (
+        <MediaPreviewCard key={item.id} module={module} data={item.data} title={getMediaTitle(item.data)} compact />
+      ))}
+    </div>
+  );
+}
+
+function MediaPreviewCard({
+  module,
+  data,
+  title,
+  compact = false,
+}: {
+  module: ModuleDef;
+  data: Record<string, unknown>;
+  title: string;
+  compact?: boolean;
+}) {
+  const kind = getMediaKind(module);
+  const url = getMediaUrl(data);
+  if (!kind || !url) return null;
+
+  return (
+    <article className={`media-preview ${compact ? "compact" : ""}`}>
+      <div className="media-preview-heading">
+        <strong>{title}</strong>
+        <a href={url} target="_blank" rel="noreferrer">
+          開啟 <ExternalLink size={13} />
+        </a>
+      </div>
+      <MediaPlayer kind={kind} url={url} title={title} />
+    </article>
+  );
+}
+
+function MediaPlayer({ kind, url, title }: { kind: string; url: string; title: string }) {
+  if (kind === "image") {
+    return <img className="media-image" src={url} alt={title} loading="lazy" />;
+  }
+  if (kind === "video") {
+    return <video className="media-video" src={url} controls preload="metadata" />;
+  }
+  if (kind === "audio" || kind === "podcast") {
+    return <audio className="media-audio" src={url} controls preload="metadata" />;
+  }
+  return (
+    <iframe
+      className="media-document"
+      src={url}
+      title={title}
+      loading="lazy"
+      sandbox="allow-scripts allow-same-origin allow-downloads"
+    />
+  );
+}
+
 function FieldControl({
   field,
   module,
   value,
   onChange,
+  onUploadComplete,
   onNotice,
 }: {
   field: FieldDef;
   module: ModuleDef;
   value: unknown;
   onChange: (value: unknown) => void;
+  onUploadComplete: (payload: UploadPayload) => void;
   onNotice: (value: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
@@ -447,15 +579,22 @@ function FieldControl({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("module", module.id);
+      formData.append("field", field.key);
+      if (module.kind === "media") formData.append("requireBucket", "true");
       const response = await fetch("/api/upload", { method: "POST", body: formData });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Upload failed");
-      onChange(payload.url);
-      onNotice(`已上傳 ${file.name}。`);
+      onUploadComplete(payload);
+      onNotice(`已上傳 ${file.name} 到 Bucket。`);
     } catch (error) {
-      const localUrl = URL.createObjectURL(file);
-      onChange(localUrl);
-      onNotice(`已用瀏覽器暫存 ${file.name}。`);
+      if (module.kind === "media") {
+        onNotice(error instanceof Error ? error.message : "Bucket 上傳失敗，請檢查設定。");
+      } else {
+        const localUrl = URL.createObjectURL(file);
+        onChange(localUrl);
+        onNotice(`已用瀏覽器暫存 ${file.name}。`);
+      }
     } finally {
       setUploading(false);
     }
@@ -463,19 +602,28 @@ function FieldControl({
 
   return (
     <label className={field.wide || field.type === "textarea" || isFile ? "wide" : ""}>
-      <span>{field.label}{field.required ? <b>*</b> : null}</span>
+      <span>
+        {field.label}
+        {field.required ? <b>*</b> : null}
+      </span>
       {field.type === "textarea" ? (
         <textarea value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} rows={4} />
       ) : field.type === "boolean" ? (
         <span className="switch-row">
           <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
-          啟用 / 是
+          啟用 / 繼續
         </span>
       ) : isFile ? (
         <span className="upload-field">
           <input type="file" accept={field.accept} onChange={(event) => upload(event.target.files?.[0])} />
           {uploading ? <Loader2 className="spin" size={16} /> : <UploadCloud size={16} />}
-          {value ? <a href={String(value)} target="_blank" rel="noreferrer">已上傳檔案</a> : <em>{module.kind === "media" ? "可上傳至 Bucket" : "選擇檔案"}</em>}
+          {value ? (
+            <a href={String(value)} target="_blank" rel="noreferrer">
+              已有檔案
+            </a>
+          ) : (
+            <em>{module.kind === "media" ? "上傳到 Bucket" : "選擇檔案"}</em>
+          )}
         </span>
       ) : (
         <input
@@ -505,15 +653,21 @@ function RecordTable({
       <table>
         <thead>
           <tr>
+            {getMediaKind(module) ? <th>預覽</th> : null}
             {visibleHeaders.map((header) => (
               <th key={header}>{header}</th>
             ))}
-            <th>操作</th>
+            <th>動作</th>
           </tr>
         </thead>
         <tbody>
           {records.map((item) => (
             <tr key={item.id}>
+              {getMediaKind(module) ? (
+                <td>
+                  <TableMediaPreview module={module} item={item} />
+                </td>
+              ) : null}
               {visibleHeaders.map((header) => (
                 <td key={header}>
                   <CellValue value={item.data[header]} />
@@ -537,6 +691,22 @@ function RecordTable({
   );
 }
 
+function TableMediaPreview({ module, item }: { module: ModuleDef; item: RecordItem }) {
+  const kind = getMediaKind(module);
+  const url = getMediaUrl(item.data);
+  const title = getMediaTitle(item.data);
+  if (!kind || !url) return <span>-</span>;
+
+  return (
+    <div className="table-media-preview">
+      <MediaPlayer kind={kind} url={url} title={title} />
+      <a className="table-link" href={url} target="_blank" rel="noreferrer">
+        開啟 <ExternalLink size={13} />
+      </a>
+    </div>
+  );
+}
+
 function CellValue({ value }: { value: unknown }) {
   const text = value == null || value === "" ? "-" : String(value);
   if (/^https?:\/\//i.test(text)) {
@@ -549,13 +719,87 @@ function CellValue({ value }: { value: unknown }) {
   return <span>{text}</span>;
 }
 
-function SettingsGuide({ health }: { health: BackendHealth | null }) {
+function SettingsGuide({
+  settings,
+  health,
+  onChange,
+  onSave,
+  onTest,
+}: {
+  settings: DbSettings;
+  health: BackendHealth | null;
+  onChange: (settings: DbSettings) => void;
+  onSave: (settings?: DbSettings) => void;
+  onTest: () => void;
+}) {
   return (
     <section className="panel guide">
-      <h3>後端選擇</h3>
-      <p>可用環境變數 `DB_PROVIDER=local|postgres|mysql|mongodb` 切換。未設定時會自動偵測 `DATABASE_PUBLIC_URL`、`POSTGRES_PUBLIC_URL`、`MYSQL_PUBLIC_URL`、`MONGO_PUBLIC_URL`。</p>
-      <p>Bucket 使用 `BUCKET_ENDPOINT`、`BUCKET_NAME`、`BUCKET_ACCESS_KEY_ID`、`BUCKET_SECRET_ACCESS_KEY`、`BUCKET_REGION`。也相容 `S3_*` / `AWS_*` 命名；未設定時會寫入本機 `.data/uploads`。</p>
-      <code>目前狀態：{health?.ok ? `${health.provider} ready` : "尚未連線"}</code>
+      <h3>鋒兄資料庫設定</h3>
+      <p>可自由切換 MongoDB、Postgres 或 MySQL。localStorage 只保存這份鋒兄設定，CRUD 與 CSV 匯入資料直接讀寫資料庫。</p>
+      <div className="settings-grid">
+        <label>
+          <span>資料庫</span>
+          <select value={settings.provider} onChange={(event) => onChange({ ...settings, provider: event.target.value as DbProvider })}>
+            <option value="mongodb">MongoDB</option>
+            <option value="postgres">Postgres</option>
+            <option value="mysql">MySQL</option>
+          </select>
+        </label>
+        <label className="wide">
+          <span>連線字串</span>
+          <input
+            type="password"
+            value={settings.connectionString}
+            placeholder="mongodb+srv://... 或 postgres://... 或 mysql://..."
+            onChange={(event) => onChange({ ...settings, connectionString: event.target.value })}
+          />
+        </label>
+        <label>
+          <span>Database / Schema 名稱</span>
+          <input value={settings.databaseName} onChange={(event) => onChange({ ...settings, databaseName: event.target.value })} />
+        </label>
+        <label>
+          <span>SSL</span>
+          <span className="switch-row">
+            <input type="checkbox" checked={settings.ssl} onChange={(event) => onChange({ ...settings, ssl: event.target.checked })} />
+            啟用 SSL
+          </span>
+        </label>
+      </div>
+      <div className="form-actions">
+        <button className="primary-button" type="button" onClick={() => onSave(settings)}>
+          儲存鋒兄設定
+        </button>
+        <button className="ghost-button" type="button" onClick={onTest}>
+          測試連線
+        </button>
+        <code>{health?.ok ? `${health.provider} ready${health.database ? ` / ${health.database}` : ""}` : health?.message ?? "尚未連線"}</code>
+      </div>
+    </section>
+  );
+}
+
+function ToolsHub({ onOpen }: { onOpen: (id: string) => void }) {
+  return (
+    <section className="panel tools-hub">
+      <div className="panel-heading">
+        <div>
+          <h3>鋒兄工具子項目</h3>
+          <p>參考 SQLiteCloudFengBroAI：鋒兄比價、手機比價、鋒兄Tube、鋒兄金融，共用工具歷史欄位並直接寫入目前資料庫。</p>
+        </div>
+      </div>
+      <div className="tool-child-grid">
+        {TOOL_CHILD_MODULES.map((item) => (
+          <button className="tool-child-card" type="button" key={item.id} onClick={() => onOpen(item.id)}>
+            <item.icon size={22} />
+            <span>
+              <strong>{item.label}</strong>
+              <small>{item.subtitle}</small>
+            </span>
+            <ExternalLink size={17} />
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
@@ -563,8 +807,8 @@ function SettingsGuide({ health }: { health: BackendHealth | null }) {
 function AboutPanel() {
   return (
     <section className="panel guide">
-      <h3>關於鋒兄 AI 管理台</h3>
-      <p>本版本選型 TanStack Start，參考 Appwrite 版資料欄位，提供所有鋒兄模組的 CRUD、CSV 匯入匯出與 Bucket 上傳。</p>
+      <h3>關於鋒兄 AI</h3>
+      <p>TanStack Start 介面的鋒兄 CRUD 工作台，支援 CSV 匯入匯出、資料庫切換與 Bucket 檔案上傳。</p>
     </section>
   );
 }
@@ -576,4 +820,64 @@ function compactForm(form: Record<string, unknown>, fields: FieldDef[]) {
       .map((field) => [field.key.replace(/File$/, ""), form[field.key]])
       .filter(([, value]) => value !== ""),
   );
+}
+
+function withToolDefaults(module: ModuleDef, payload: Record<string, unknown>) {
+  const defaults = getToolDefaults(module);
+  if (!Object.keys(defaults).length) return payload;
+  return {
+    ...defaults,
+    ...payload,
+    toolType: String(payload.toolType || defaults.toolType),
+  };
+}
+
+function getToolDefaults(module: ModuleDef): Record<string, string> {
+  const toolType = getToolType(module.id);
+  return toolType ? { toolType, checkedAt: new Date().toISOString().slice(0, 16) } : {};
+}
+
+function getToolType(moduleId: string) {
+  const map: Record<string, string> = {
+    priceCompare: "price",
+    phoneCompare: "mobile",
+    tube: "tube",
+    finance: "finance",
+  };
+  return map[moduleId] || "";
+}
+
+function readDbSettings(): DbSettings {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DB_SETTINGS_KEY) || "null") as Partial<DbSettings> | null;
+    return { ...DEFAULT_DB_SETTINGS, ...parsed };
+  } catch {
+    return DEFAULT_DB_SETTINGS;
+  }
+}
+
+function hasDbSettings(settings: DbSettings) {
+  return Boolean(settings.provider && settings.connectionString.trim());
+}
+
+function dbHeaders(settings: DbSettings, json = true) {
+  const headers: Record<string, string> = {
+    "X-FengBro-DB-Config": encodeDbSettings(settings),
+  };
+  if (json) headers["Content-Type"] = "application/json";
+  return headers;
+}
+
+function encodeDbSettings(settings: DbSettings) {
+  const encoded = encodeURIComponent(JSON.stringify(settings)).replace(/%([0-9A-F]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)));
+  return btoa(encoded);
+}
+
+async function readError(response: Response) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text).error || text;
+  } catch {
+    return text || "Request failed";
+  }
 }

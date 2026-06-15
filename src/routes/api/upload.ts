@@ -10,7 +10,19 @@ export const Route = createFileRoute("/api/upload")({
         if (!(file instanceof File)) {
           return Response.json({ error: "Missing file" }, { status: 400 });
         }
-        return Response.json(await uploadToBucket(file), { status: 201 });
+        try {
+          const result = await uploadToBucket(file, {
+            module: String(formData.get("module") || ""),
+            field: String(formData.get("field") || ""),
+            requireBucket: String(formData.get("requireBucket") || "") === "true",
+          });
+          return Response.json(result, { status: 201 });
+        } catch (error) {
+          return Response.json(
+            { error: error instanceof Error ? error.message : "Upload failed" },
+            { status: 500 },
+          );
+        }
       },
     },
   },

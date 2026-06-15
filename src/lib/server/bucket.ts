@@ -22,6 +22,12 @@ function bucketConfig() {
   };
 }
 
+type UploadOptions = {
+  module?: string;
+  field?: string;
+  requireBucket?: boolean;
+};
+
 function s3Client() {
   const config = bucketConfig();
   return new S3Client({
@@ -37,30 +43,47 @@ function s3Client() {
   });
 }
 
-export async function uploadToBucket(file: File) {
+function safePathPart(value?: string) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+export async function uploadToBucket(file: File, options: UploadOptions = {}) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const key = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName}`;
+  const date = new Date().toISOString().slice(0, 10);
+  const prefix = ["fengbro", safePathPart(options.module), safePathPart(options.field), date].filter(Boolean).join("/");
+  const key = `${prefix}/${crypto.randomUUID()}-${safeName}`;
 
   const config = bucketConfig();
   if (config.bucket) {
     const client = s3Client();
     const bucket = config.bucket;
     await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: bytes, ContentType: file.type }));
+    const url = config.publicBase ? `${config.publicBase.replace(/\/$/, "")}/${key}` : `/api/files/${encodeURIComponent(key)}`;
     return {
       key,
-      url: config.publicBase ? `${config.publicBase.replace(/\/$/, "")}/${key}` : `/api/files/${encodeURIComponent(key)}`,
+      url,
+      bucketUrl: url,
       name: file.name,
       type: file.type,
       size: file.size,
     };
   }
 
+  if (options.requireBucket) {
+    throw new Error("Bucket is not configured. Set BUCKET_NAME and Bucket credentials before uploading media files.");
+  }
+
   await mkdir(path.join(localDir, path.dirname(key)), { recursive: true });
   await writeFile(path.join(localDir, key), bytes);
+  const url = `/api/files/${encodeURIComponent(key)}`;
   return {
     key,
-    url: `/api/files/${encodeURIComponent(key)}`,
+    url,
+    bucketUrl: url,
     name: file.name,
     type: file.type,
     size: file.size,
