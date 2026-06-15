@@ -51,6 +51,7 @@ type UploadPayload = {
 };
 
 const DB_SETTINGS_KEY = "fengbro.db.settings";
+const SERVERLESS_UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024;
 
 const DEFAULT_DB_SETTINGS: DbSettings = {
   provider: "mongodb",
@@ -721,6 +722,11 @@ function FieldControl({
       onNotice(`${file.name} 不符合 ${module.label} 的檔案類型，請重新選擇。`);
       return;
     }
+    if (module.kind === "media" && file.size > SERVERLESS_UPLOAD_LIMIT_BYTES) {
+      onChange("");
+      onNotice(`檔案太大 (${formatFileSize(file.size)})，請先直接上傳到 Bucket，再把連結貼到 Bucket URL。`);
+      return;
+    }
     onUploadStart(file);
     setUploading(true);
     try {
@@ -1287,4 +1293,9 @@ async function readJsonResponse<T>(response: Response): Promise<T & { error?: st
       : text;
     return { error: message } as T & { error?: string };
   }
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
