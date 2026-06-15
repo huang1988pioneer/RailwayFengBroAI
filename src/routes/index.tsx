@@ -426,7 +426,9 @@ export function FengBroWorkspace() {
             health={health}
             onChange={setDbSettings}
             onSave={saveDbSettings}
-            onTest={() => loadHealth(dbSettings)}
+            onTest={() => testDbConnection(dbSettings)}
+            onInit={() => initializeStorage(dbSettings)}
+            onBucketTest={testBucketConnection}
           />
         ) : null}
         {module.id === "about" ? <AboutPanel /> : null}
@@ -817,12 +819,16 @@ function SettingsGuide({
   onChange,
   onSave,
   onTest,
+  onInit,
+  onBucketTest,
 }: {
   settings: DbSettings;
   health: BackendHealth | null;
   onChange: (settings: DbSettings) => void;
   onSave: (settings?: DbSettings) => void;
   onTest: () => void;
+  onInit: () => void;
+  onBucketTest: () => void;
 }) {
   return (
     <section className="panel guide">
@@ -863,7 +869,13 @@ function SettingsGuide({
           儲存鋒兄設定
         </button>
         <button className="ghost-button" type="button" onClick={onTest}>
-          測試連線
+          測試資料庫
+        </button>
+        <button className="ghost-button" type="button" onClick={onInit}>
+          初始化 Table / Collection
+        </button>
+        <button className="ghost-button" type="button" onClick={onBucketTest}>
+          測試 Bucket
         </button>
         <code>{health?.ok ? `${health.provider} ready${health.database ? ` / ${health.database}` : ""}` : health?.message ?? "尚未連線"}</code>
       </div>
