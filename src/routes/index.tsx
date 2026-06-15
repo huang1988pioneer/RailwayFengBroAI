@@ -270,6 +270,80 @@ export function FengBroWorkspace() {
     void loadRecords(module.id);
   }
 
+  async function testDbConnection(settings = dbSettings) {
+    if (!hasDbSettings(settings)) {
+      setNotice("請先填入 MongoDB、Postgres 或 MySQL 連線字串。");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: settings.provider,
+          connectionString: settings.connectionString,
+          databaseName: settings.databaseName,
+          ssl: settings.ssl,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || "Database connection test failed");
+      setHealth({ ok: true, provider: settings.provider, database: payload.details?.database || settings.databaseName });
+      setNotice(`${payload.details?.target || settings.provider} 連線成功：${payload.details?.response || "ok"}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Database connection test failed";
+      setHealth({ ok: false, provider: settings.provider, message });
+      setNotice(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function initializeStorage(settings = dbSettings) {
+    if (!hasDbSettings(settings)) {
+      setNotice("請先儲存資料庫連線設定，再初始化 Table 或 Collection。");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/setup", {
+        method: "POST",
+        headers: dbHeaders(settings),
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || "Storage initialization failed");
+      setHealth({ ok: true, provider: payload.provider || settings.provider, database: payload.database || settings.databaseName });
+      setNotice(`初始化完成：${payload.collection ? `Collection ${payload.collection}` : `Table ${payload.table || "fengbro_records"}`}`);
+      await loadRecords(module.id);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Storage initialization failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function testBucketConnection() {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/test-bucket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || "Bucket connection test failed");
+      setNotice(`Bucket 連線成功：${payload.details?.bucket || payload.details?.endpoint || "ok"}`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Bucket connection test failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const filteredRecords = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return records;
