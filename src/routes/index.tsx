@@ -51,7 +51,6 @@ type UploadPayload = {
 };
 
 const DB_SETTINGS_KEY = "fengbro.db.settings";
-const SERVERLESS_UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024;
 
 const DEFAULT_DB_SETTINGS: DbSettings = {
   provider: "mongodb",
@@ -722,22 +721,10 @@ function FieldControl({
       onNotice(`${file.name} 不符合 ${module.label} 的檔案類型，請重新選擇。`);
       return;
     }
-    if (module.kind === "media" && file.size > SERVERLESS_UPLOAD_LIMIT_BYTES) {
-      onChange("");
-      onNotice(`檔案太大 (${formatFileSize(file.size)})，請先直接上傳到 Bucket，再把連結貼到 Bucket URL。`);
-      return;
-    }
     onUploadStart(file);
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("module", module.id);
-      formData.append("field", field.key);
-      if (module.kind === "media") formData.append("requireBucket", "true");
-      const response = await fetch("/api/upload", { method: "POST", body: formData });
-      const payload = await readJsonResponse<UploadPayload>(response);
-      if (!response.ok) throw new Error(payload.error || "Upload failed");
+      const payload = module.kind === "media" ? await directBucketUpload(file, module.id, field.key) : await serverBucketUpload(file, module.id, field.key);
       onUploadComplete(payload);
       onNotice(`已上傳 ${file.name} 到 Bucket。`);
     } catch (error) {
@@ -787,6 +774,66 @@ function FieldControl({
       )}
     </label>
   );
+}
+
+async function directBucketUpload(file: File, moduleId: string, fieldKey: string): Promise<UploadPayload> {
+  const signedResponse = await fetch("/api/upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      module: moduleId,
+      field: fieldKey,
+    }),
+  });
+  const signedPayload = await readJsonPayload<UploadPayload & { uploadUrl?: string }>(signedResponse);
+  if (!signedResponse.ok || !signedPayload.uploadUrl) {
+    throw new Error(signedPayload.error || "無法建立 Bucket 直傳網址。");
+  }
+
+  const uploadResponse = await fetch(signedPayload.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  if (!uploadResponse.ok) {
+    throw new Error(await readPlainError(uploadResponse, "Bucket 直傳失敗，請檢查 Bucket CORS 或 credentials。"));
+  }
+
+  const { uploadUrl, ...payload } = signedPayload;
+  return payload;
+}
+
+async function serverBucketUpload(file: File, moduleId: string, fieldKey: string): Promise<UploadPayload> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("module", moduleId);
+  formData.append("field", fieldKey);
+  const response = await fetch("/api/upload", { method: "POST", body: formData });
+  const payload = await readJsonPayload<UploadPayload>(response);
+  if (!response.ok) throw new Error(payload.error || "Upload failed");
+  return payload;
+}
+
+async function readJsonPayload<T>(response: Response): Promise<T & { error?: string }> {
+  const text = await response.text();
+  if (!text) return {} as T & { error?: string };
+  try {
+    return JSON.parse(text) as T & { error?: string };
+  } catch {
+    return {
+      error: text.startsWith("Request Entity Too Large")
+        ? "檔案太大，已改用 Bucket 直傳；請重新選擇檔案再試一次。"
+        : text.slice(0, 180),
+    } as T & { error?: string };
+  }
+}
+
+async function readPlainError(response: Response, fallback: string) {
+  const text = await response.text().catch(() => "");
+  return text || fallback;
 }
 
 function RecordTable({
@@ -1281,21 +1328,3 @@ async function readError(response: Response) {
   }
 }
 
-async function readJsonResponse<T>(response: Response): Promise<T & { error?: string }> {
-  const text = await response.text();
-  if (!text) return {} as T & { error?: string };
-
-  try {
-    return JSON.parse(text) as T & { error?: string };
-  } catch {
-    const message = text.startsWith("Request Entity Too Large")
-      ? "檔案太大，伺服器拒絕接收。請改用較小檔案，或先上傳到 Bucket 後貼上 URL。"
-      : text;
-    return { error: message } as T & { error?: string };
-  }
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}

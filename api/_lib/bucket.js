@@ -1,4 +1,5 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 function firstEnv(names) {
   for (const name of names) {
@@ -7,7 +8,7 @@ function firstEnv(names) {
   return "";
 }
 
-function bucketConfig() {
+export function bucketConfig() {
   return {
     bucket: firstEnv(["BUCKET_NAME", "S3_BUCKET", "AWS_BUCKET_NAME"]),
     endpoint: firstEnv(["BUCKET_ENDPOINT", "S3_ENDPOINT", "AWS_ENDPOINT_URL"]),
@@ -39,18 +40,51 @@ function safePathPart(value = "") {
     .replace(/^_+|_+$/g, "");
 }
 
-export async function uploadBufferToBucket(file, options = {}) {
+function assertBucketConfig() {
   const config = bucketConfig();
   if (!config.bucket || !config.accessKeyId || !config.secretAccessKey) {
     const error = new Error("Bucket is not configured. Set BUCKET_NAME, BUCKET_ACCESS_KEY_ID and BUCKET_SECRET_ACCESS_KEY.");
     error.statusCode = 500;
     throw error;
   }
+  return config;
+}
 
-  const safeName = safePathPart(file.name) || "upload";
+function createObjectKey(fileName, options = {}) {
+  const safeName = safePathPart(fileName) || "upload";
   const date = new Date().toISOString().slice(0, 10);
   const prefix = ["fengbro", safePathPart(options.module), safePathPart(options.field), date].filter(Boolean).join("/");
-  const key = `${prefix}/${crypto.randomUUID()}-${safeName}`;
+  return `${prefix}/${crypto.randomUUID()}-${safeName}`;
+}
+
+function publicObjectUrl(config, key) {
+  return config.publicBase ? `${config.publicBase.replace(/\/$/, "")}/${key}` : `/api/files/${encodeURIComponent(key)}`;
+}
+
+export async function createPresignedUpload(file, options = {}) {
+  const config = assertBucketConfig();
+  const key = createObjectKey(file.name, options);
+  const command = new PutObjectCommand({
+    Bucket: config.bucket,
+    Key: key,
+    ContentType: file.type || "application/octet-stream",
+  });
+  const uploadUrl = await getSignedUrl(s3Client(), command, { expiresIn: 900 });
+  const url = publicObjectUrl(config, key);
+  return {
+    key,
+    uploadUrl,
+    url,
+    bucketUrl: url,
+    name: file.name,
+    type: file.type,
+    size: file.size || 0,
+  };
+}
+
+export async function uploadBufferToBucket(file, options = {}) {
+  const config = assertBucketConfig();
+  const key = createObjectKey(file.name, options);
   const client = s3Client();
   await client.send(new PutObjectCommand({
     Bucket: config.bucket,
@@ -59,7 +93,7 @@ export async function uploadBufferToBucket(file, options = {}) {
     ContentType: file.type || "application/octet-stream",
   }));
 
-  const url = config.publicBase ? `${config.publicBase.replace(/\/$/, "")}/${key}` : `/api/files/${encodeURIComponent(key)}`;
+  const url = publicObjectUrl(config, key);
   return {
     key,
     url,

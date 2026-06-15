@@ -5,7 +5,9 @@ import healthHandler from "./api/health.js";
 import recordsHandler from "./api/records/[module].js";
 import recordHandler from "./api/records/[module]/[id].js";
 import filesHandler from "./api/files/[key].js";
+import setupHandler from "./api/setup.js";
 import testBucketHandler from "./api/test-bucket.js";
+import uploadUrlHandler from "./api/upload-url.js";
 import uploadHandler from "./api/upload.js";
 import { errorStatus, getDeploymentEnvStatus, testConnectionTarget } from "./lib/connectionTester.js";
 
@@ -51,10 +53,12 @@ app.post("/api/test-connection", async (req, res) => {
 });
 
 app.get("/api/health", healthHandler);
+app.post("/api/setup", setupHandler);
 app.post("/api/test-bucket", testBucketHandler);
 app.all("/api/records/:module", withQuery((req) => ({ module: req.params.module }), recordsHandler));
 app.all("/api/records/:module/:id", withQuery((req) => ({ module: req.params.module, id: req.params.id }), recordHandler));
 app.post("/api/upload", uploadHandler);
+app.post("/api/upload-url", uploadUrlHandler);
 app.get("/api/files/:key", withQuery((req) => ({ key: req.params.key }), filesHandler));
 
 app.use(express.static(path.join(__dirname, "dist")));
